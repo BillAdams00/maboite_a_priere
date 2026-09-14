@@ -1,0 +1,203 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Visibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+}
+
+enum AdminStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+model PrayerRequest {
+  id            String        @id @default(cuid())
+  publicSlug    String        @unique
+  manageToken   String        @unique // conservé pour la gestion locale / admin
+
+  firstName     String        @db.VarChar(60)
+  lastName      String        @db.VarChar(60) // jamais exposé publiquement
+  displayAsAnonymous Boolean  @default(false)
+  content       String        @db.Text // chiffré en AES-256-GCM si visibility = PRIVATE
+  contentIv     String?
+  category      String?       @db.VarChar(40)
+
+  visibility    Visibility
+  status        RequestStatus @default(PENDING)
+  moderatedById String?
+  moderatedAt   DateTime?
+  moderationNote String?      @db.Text
+
+  isAnswered    Boolean       @default(false)
+  answeredAt    DateTime?
+  answeredNote  String?       @db.Text
+  answeredBy    String?
+
+  prayerCount   Int           @default(0)
+  viewCount     Int           @default(0)
+
+  ownerPushToken String?      @db.VarChar(255) // jeton Expo Push du déposant
+
+  ipHash        String?       @db.VarChar(64)
+  userAgent     String?       @db.VarChar(255)
+  locale        String        @default("fr")
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  prayers       PrayerAction[]
+  reports       Report[]
+  answeredClaim AnsweredClaim?
+
+  @@index([visibility, status, isAnswered, createdAt(sort: Desc)])
+  @@index([createdAt])
+  @@index([answeredAt])
+}
+
+model PrayerAction {
+  id        String        @id @default(cuid())
+  requestId String
+  request   PrayerRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  visitorId String        @db.VarChar(64) // uuid stocké dans expo-secure-store
+  ipHash    String?       @db.VarChar(64)
+  createdAt DateTime      @default(now())
+
+  @@unique([requestId, visitorId])
+  @@index([createdAt])
+}
+
+model Admin {
+  id            String               @id @default(cuid())
+  email         String               @unique
+  firstName     String
+  lastName      String
+  role          AdminRole            @default(MODERATOR)
+  status        AdminStatus          @default(INVITED)
+  invitedById   String?
+  lastLoginAt   DateTime?
+  createdAt     DateTime             @default(now())
+  deletedAt     DateTime?
+  refreshTokens MobileRefreshToken[]
+  pushTokens    AdminPushToken[]
+}
+
+model AdminInvitation {
+  id          String    @id @default(cuid())
+  email       String
+  role        AdminRole
+  tokenHash   String    @unique
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([email])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model MobileRefreshToken {
+  id          String    @id @default(cuid())
+  adminId     String
+  admin       Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  deviceLabel String?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([adminId])
+}
+
+model AdminPushToken {
+  id            String   @id @default(cuid())
+  adminId       String
+  admin         Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  expoPushToken String   @unique
+  createdAt     DateTime @default(now())
+
+  @@index([adminId])
+}
+
+model AnsweredClaim {
+  id            String        @id @default(cuid())
+  requestId     String        @unique
+  request       PrayerRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  note          String?       @db.Text
+  confirmedById String?
+  confirmedAt   DateTime?
+  rejectedAt    DateTime?
+  createdAt     DateTime      @default(now())
+}
+
+model Report {
+  id        String        @id @default(cuid())
+  requestId String
+  request   PrayerRequest @relation(fields: [requestId], references: [id])
+  reason    String
+  visitorId String?
+  handledAt DateTime?
+  createdAt DateTime      @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  ipHash     String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
+model DailyStat {
+  day              DateTime @id @db.Date
+  requestsTotal    Int      @default(0)
+  requestsPublic   Int      @default(0)
+  requestsPrivate  Int      @default(0)
+  requestsAnswered Int      @default(0)
+  prayers          Int      @default(0)
+  uniquePrayers    Int      @default(0)
+  visits           Int      @default(0)
+}
