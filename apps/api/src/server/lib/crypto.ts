@@ -1,12 +1,12 @@
 import crypto from 'node:crypto';
+import { env } from '../env.js';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // 96 bits for GCM
 const AUTH_TAG_LENGTH = 16; // 128 bits
 
 function getKey(): Buffer {
-  const secret = process.env.APP_SECRET || 'default-insecure-secret-key-32-chars-long!';
-  return crypto.createHash('sha256').update(secret).digest();
+  return crypto.createHash('sha256').update(env.APP_SECRET).digest();
 }
 
 /**
@@ -51,13 +51,20 @@ export function decryptText(ciphertext: string, ivAndTagHex: string): string {
 }
 
 /**
- * Hachage anonymisé d'une adresse IP avec un pepper.
- * Ne conserve jamais l'adresse IP en clair.
+ * Hachage anonymisé d'une adresse IP avec le PEPPER validé.
+ * Ne conserve jamais l'adresse IP en clair ni de fallback codé en dur.
  */
 export function hashIp(ip: string | null | undefined): string | null {
   if (!ip) return null;
-  const pepper = process.env.PEPPER || 'default-pepper-salt-key';
-  return crypto.createHash('sha256').update(`${ip}:${pepper}`).digest('hex');
+  return crypto.createHash('sha256').update(`${ip}:${env.PEPPER}`).digest('hex');
+}
+
+/**
+ * Hache un jeton sensible (ex: manageToken) avant stockage en base de données.
+ * Empêche toute fuite en cas de compromission de la base.
+ */
+export function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(`${token}:${env.PEPPER}`).digest('hex');
 }
 
 /**

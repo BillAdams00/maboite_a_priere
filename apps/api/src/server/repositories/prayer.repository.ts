@@ -1,4 +1,5 @@
 import { prisma } from '../db.js';
+import { hashToken, safeEqual } from '../lib/crypto.js';
 import type { Prisma, Visibility, RequestStatus } from '@prisma/client';
 import type { PublicPrayerRequestItem, PrayerRequestFeedQuery } from '@maboiteapriere/shared';
 
@@ -224,6 +225,7 @@ export class PrayerRepository {
 
   /**
    * Gestion d'un sujet par son propriétaire (via X-Manage-Token)
+   * Le jeton reçu est haché puis comparé en temps constant (safeEqual) au hash stocké en base.
    */
   static async findByManageToken(id: string, manageToken: string) {
     const item = await prisma.prayerRequest.findUnique({
@@ -231,7 +233,12 @@ export class PrayerRepository {
       include: { answeredClaim: true },
     });
 
-    if (!item || item.manageToken !== manageToken || item.deletedAt !== null) {
+    if (!item || item.deletedAt !== null) {
+      return null;
+    }
+
+    const tokenHash = hashToken(manageToken);
+    if (!safeEqual(item.manageToken, tokenHash)) {
       return null;
     }
 

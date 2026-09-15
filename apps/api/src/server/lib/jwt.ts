@@ -1,8 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'default-secret-jwt-key-minimum-32-chars-ok!'
-);
+import { env } from '../env.js';
 
 export interface AdminJwtPayload {
   adminId: string;
@@ -10,17 +7,21 @@ export interface AdminJwtPayload {
   role: 'SUPER_ADMIN' | 'ADMIN' | 'MODERATOR';
 }
 
+function getJwtSecret(): Uint8Array {
+  return new TextEncoder().encode(env.JWT_SECRET);
+}
+
 export async function createAccessToken(payload: AdminJwtPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('15m')
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function verifyAccessToken(token: string): Promise<AdminJwtPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return {
       adminId: payload.adminId as string,
       email: payload.email as string,

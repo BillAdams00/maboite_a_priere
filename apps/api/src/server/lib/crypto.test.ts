@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { encryptText, decryptText, hashIp, generateSecureToken, safeEqual } from './crypto.js';
+import {
+  encryptText,
+  decryptText,
+  hashIp,
+  hashToken,
+  generateSecureToken,
+  safeEqual,
+} from './crypto.js';
 
 describe('Crypto utilities', () => {
   it('chiffre et déchiffre correctement le contenu privé', () => {
@@ -21,6 +28,17 @@ describe('Crypto utilities', () => {
     expect(hash1).toBe(hash2);
     expect(hash1).not.toContain('192.168.1.42');
     expect(hash1?.length).toBe(64);
+  });
+
+  it('hache les tokens sensibles (manageToken) avec le pepper', () => {
+    const rawToken = generateSecureToken(32);
+    const hashed = hashToken(rawToken);
+
+    expect(hashed).not.toBe(rawToken);
+    expect(hashed.length).toBe(64);
+    expect(hashToken(rawToken)).toBe(hashed);
+    expect(safeEqual(hashed, hashToken(rawToken))).toBe(true);
+    expect(safeEqual(hashed, hashToken('autre-token'))).toBe(false);
   });
 
   it('génère un jeton sécurisé aléatoire', () => {

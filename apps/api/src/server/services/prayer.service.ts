@@ -1,5 +1,5 @@
 import { PrayerRepository } from '../repositories/prayer.repository.js';
-import { encryptText, generateSecureToken, hashIp } from '../lib/crypto.js';
+import { encryptText, generateSecureToken, hashIp, hashToken } from '../lib/crypto.js';
 import { generatePublicSlug } from '../lib/slug.js';
 import type { CreatePrayerRequestInput, ManagePrayerRequestInput } from '@maboiteapriere/shared';
 import { prisma } from '../db.js';
@@ -30,6 +30,7 @@ export class PrayerService {
     const ipHash = hashIp(clientIp);
     const publicSlug = generatePublicSlug();
     const manageToken = generateSecureToken(32);
+    const manageTokenHash = hashToken(manageToken);
 
     let contentToStore = input.content;
     let contentIv: string | null = null;
@@ -53,7 +54,7 @@ export class PrayerService {
 
     const created = await PrayerRepository.create({
       publicSlug,
-      manageToken,
+      manageToken: manageTokenHash,
       firstName: input.firstName,
       lastName: input.lastName,
       displayAsAnonymous: input.displayAsAnonymous,
