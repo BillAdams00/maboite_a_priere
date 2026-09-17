@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { managePrayerAction } from '../../../../server/actions/prayer.actions';
 import type { MyPrayerRequestDetail } from '../../../../lib/types/index';
+import { PrayerFidelityBadge } from '../../../../components/prayer/PrayerFidelityBadge';
 import Link from 'next/link';
 
 interface MonSujetClientProps {
@@ -209,6 +210,9 @@ export function MonSujetClient({ prayer, rawToken }: MonSujetClientProps) {
           </div>
         )}
       </div>
+
+      {/* Indicateur de fidélité privée et positive */}
+      <PrayerFidelityBadge />
 
       {/* Actions de gestion */}
       <div className="bg-surface border border-bordure rounded-2xl p-6 shadow-sm space-y-4">

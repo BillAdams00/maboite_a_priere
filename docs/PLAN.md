@@ -258,18 +258,58 @@ v2.0) disparaît d'elle-même.
 
 ---
 
-## 9. Identité visuelle
+## 9. Identité visuelle — vivante et immersive (décision du 17/09)
 
-Tokens inchangés (à réajuster avec tes captures) :
+Évolution demandée : passer d'un site sobre à une expérience **dynamique, moderne, qui donne envie de
+revenir même pour un petit geste** (lire un verset, prier pour quelqu'un). **Garde-fou explicite,
+non négociable :** on engage par la beauté du geste et la satisfaction de l'interaction — jamais par
+des mécaniques de manipulation (urgence fabriquée, culpabilisation, notifications compulsives). Toute
+animation respecte `prefers-reduced-motion` et le contraste WCAG 2.2 AA reste garanti sous les effets
+visuels — ce ne sont pas des options, ce sont des conditions d'acceptation.
+
+Tokens de couleur inchangés dans leur principe (à réajuster avec tes captures), mais complétés pour
+porter des effets de profondeur :
 
 ```css
 --fond #FBF8F3   --surface #FFFFFF   --encre #1C2541   --encre-douce #55607A
 --primaire #2F4A78   --lumiere #E8A33D   --paix #6FA287   --bordure #EAE3D8
+--glow-or   #F3D9A4   /* halo doux derrière les versets, jamais saturé */
+--glow-bleu #C9D9F0   /* halo doux, usage identique */
 ```
 
 Typographie serif chaleureuse pour les titres (Fraunces/Lora), sans humaniste pour le texte (Inter/Plus
-Jakarta Sans). Mode sombre prévu dès les tokens. WCAG 2.2 AA. PWA installable en option gratuite plus
-tard — un bon compromis « sensation d'app » sans frais de store (voir §17 de la v2.0, toujours valable).
+Jakarta Sans). Mode sombre approfondi — pas une simple inversion : nuit profonde avec halos dorés, pensé
+pour l'usage réel du soir (déjà identifié comme pic d'usage). WCAG 2.2 AA. PWA installable en option
+gratuite plus tard (voir §17 de la v2.0, toujours valable).
+
+### Ce qui rend le site vivant
+
+1. **Versets flottants sur l'accueil** — un petit corpus de versets d'espérance (pas seulement
+   Matthieu 18:19) qui se relaient en fondu/rotation douce, sur un fond de halos lumineux qui dérivent
+   très lentement (CSS, jamais de clignotement ni de mouvement brusque). Ça doit évoquer une lumière
+   vivante, pas un bandeau publicitaire qui tourne.
+2. **Micro-interactions gratifiantes sur les petits gestes** — en particulier « Je prie pour toi » :
+   retour visuel immédiat (le compteur s'anime, un effet de particules discret type lumière/éclat),
+   éventuellement un retour haptique léger sur mobile. C'est le geste le plus fréquent du site, il
+   mérite le plus de soin.
+3. **Sensation d'app** — transitions douces entre les pages plutôt que des rechargements bruts, états
+   de chargement animés (squelettes, pas d'écran blanc), cartes qui apparaissent en douceur au défilement.
+4. **Mur communauté vivant** — le compteur de prières d'un sujet se met à jour sans recharger la page
+   quand quelqu'un d'autre prie pendant que tu es sur l'écran (Supabase Realtime, ou revalidation
+   périodique légère à défaut) : donne l'impression d'une communauté réellement active.
+5. **Verset du jour** — une bonne raison d'ouvrir le site même sans sujet à déposer : change chaque
+   jour, partageable. C'est la réponse honnête à « revenir pour les petites tâches », sans mécanique
+   de manipulation.
+6. **Fidélité, présentée positivement et en privé** — « Tu as soutenu la communauté X jours cette
+   semaine » visible uniquement par l'utilisateur lui-même. **Explicitement exclu :** classement
+   public, perte/rupture de série affichée comme un échec, tout badge de couleur alarmante.
+
+### Contraintes techniques pour l'agent
+- **Framer Motion** pour les animations orchestrées (transitions de page, apparitions au scroll),
+  CSS pur pour les effets ambiants continus (halos, dérive) — plus léger, moins de re-render.
+- Toute animation a un état de repos visible immédiatement (rien qui reste caché en attendant un
+  scroll ou un observer) et se dégrade proprement si JS est lent à charger.
+- Aucune animation ne doit décaler la mise en page (`layout shift`) ni bloquer une interaction.
 
 ---
 

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Heart, PlusCircle, Users, Sparkles } from 'lucide-react';
+import { ThemeToggle } from './ThemeToggle';
 
 export function Navbar() {
   return (
@@ -19,7 +20,7 @@ export function Navbar() {
           </div>
         </Link>
 
-        <nav className="flex items-center gap-1 sm:gap-3 text-sm font-medium">
+        <nav className="flex items-center gap-1 sm:gap-2.5 text-sm font-medium">
           <Link
             href="/communaute"
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-encre-douce hover:text-encre hover:bg-surface transition-colors"
@@ -35,6 +36,8 @@ export function Navbar() {
             <Sparkles size={17} className="text-lumiere" />
             <span className="hidden sm:inline">Exaucés</span>
           </Link>
+
+          <ThemeToggle />
 
           <Link
             href="/deposer"

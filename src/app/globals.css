@@ -5,26 +5,141 @@
 :root {
   --font-serif: 'Fraunces', Georgia, serif;
   --font-sans: 'Inter', system-ui, sans-serif;
-  --fond: #FBF8F3;
-  --surface: #FFFFFF;
-  --encre: #1C2541;
-  --encre-douce: #55607A;
-  --primaire: #2F4A78;
-  --lumiere: #E8A33D;
-  --paix: #6FA287;
-  --bordure: #EAE3D8;
+
+  /* Mode Clair — Lin, Encre, Bleu Nuit, Vert Sauge, Or Doux */
+  --fond-rgb: 251 248 243;
+  --surface-rgb: 255 255 255;
+  --surface-subtle-rgb: 244 239 230;
+  --encre-rgb: 28 37 65;
+  --encre-douce-rgb: 85 96 122;
+  --encre-subtile-rgb: 140 150 171;
+  --primaire-rgb: 47 74 120;
+  --primaire-hover-rgb: 35 56 92;
+  --primaire-light-rgb: 235 240 248;
+  --lumiere-rgb: 232 163 61;
+  --lumiere-subtle-rgb: 253 246 236;
+  --paix-rgb: 111 162 135;
+  --paix-subtle-rgb: 240 247 243;
+  --bordure-rgb: 234 227 216;
+  --bordure-strong-rgb: 214 203 191;
+  --danger-rgb: 200 82 80;
+  --danger-subtle-rgb: 253 242 242;
+
+  --glow-or: rgba(243, 217, 164, 0.5);
+  --glow-bleu: rgba(201, 217, 240, 0.6);
+}
+
+.dark {
+  /* Mode Nuit Profonde — Ciel nocturne 2h du matin & Halos dorés chauds */
+  --fond-rgb: 12 18 32;
+  --surface-rgb: 21 30 51;
+  --surface-subtle-rgb: 28 40 68;
+  --encre-rgb: 246 247 250;
+  --encre-douce-rgb: 156 169 191;
+  --encre-subtile-rgb: 110 125 150;
+  --primaire-rgb: 82 122 189;
+  --primaire-hover-rgb: 104 144 214;
+  --primaire-light-rgb: 26 40 68;
+  --lumiere-rgb: 243 181 83;
+  --lumiere-subtle-rgb: 42 34 22;
+  --paix-rgb: 125 181 150;
+  --paix-subtle-rgb: 25 39 33;
+  --bordure-rgb: 34 48 76;
+  --bordure-strong-rgb: 46 65 102;
+  --danger-rgb: 224 109 107;
+  --danger-subtle-rgb: 46 26 26;
+
+  --glow-or: rgba(243, 181, 83, 0.25);
+  --glow-bleu: rgba(82, 122, 189, 0.3);
 }
 
 body {
-  background-color: var(--fond);
-  color: var(--encre);
+  background-color: rgb(var(--fond-rgb));
+  color: rgb(var(--encre-rgb));
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Animations douces */
+/* Sélection de texte */
 ::selection {
-  background-color: #EBF0F8;
-  color: #2F4A78;
+  background-color: rgb(var(--primaire-light-rgb));
+  color: rgb(var(--primaire-rgb));
+}
+
+/* Halos lumineux d'arrière-plan en dérive lente (purs CSS pour z-index et GPU) */
+@keyframes mbap-drift-halo-1 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: translate3d(24px, -18px, 0) scale(1.12);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.65;
+  }
+}
+
+@keyframes mbap-drift-halo-2 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1.08);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate3d(-28px, 20px, 0) scale(0.96);
+    opacity: 0.88;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.08);
+    opacity: 0.6;
+  }
+}
+
+@keyframes mbap-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-halo-or {
+  animation: mbap-drift-halo-1 18s ease-in-out infinite;
+}
+
+.animate-halo-bleu {
+  animation: mbap-drift-halo-2 24s ease-in-out infinite;
+}
+
+.shimmer-effect {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--surface-rgb), 0.5) 0%,
+    rgba(var(--primaire-rgb), 0.12) 50%,
+    rgba(var(--surface-rgb), 0.5) 100%
+  );
+  background-size: 200% 100%;
+  animation: mbap-shimmer 2.2s infinite ease-in-out;
+}
+
+/* Accessibilité stricte : prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .animate-halo-or,
+  .animate-halo-bleu,
+  .shimmer-effect {
+    animation: none !important;
+    transform: none !important;
+  }
 }

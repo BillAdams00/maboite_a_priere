@@ -10,32 +10,40 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        fond: '#FBF8F3',
-        surface: '#FFFFFF',
-        'surface-subtle': '#F4EFE6',
-        encre: '#1C2541',
-        'encre-douce': '#55607A',
-        'encre-subtile': '#8C96AB',
+        fond: 'rgb(var(--fond-rgb) / <alpha-value>)',
+        surface: {
+          DEFAULT: 'rgb(var(--surface-rgb) / <alpha-value>)',
+          subtle: 'rgb(var(--surface-subtle-rgb) / <alpha-value>)',
+        },
+        encre: {
+          DEFAULT: 'rgb(var(--encre-rgb) / <alpha-value>)',
+          douce: 'rgb(var(--encre-douce-rgb) / <alpha-value>)',
+          subtile: 'rgb(var(--encre-subtile-rgb) / <alpha-value>)',
+        },
         primaire: {
-          DEFAULT: '#2F4A78',
-          hover: '#23385C',
-          light: '#EBF0F8',
+          DEFAULT: 'rgb(var(--primaire-rgb) / <alpha-value>)',
+          hover: 'rgb(var(--primaire-hover-rgb) / <alpha-value>)',
+          light: 'rgb(var(--primaire-light-rgb) / <alpha-value>)',
         },
         lumiere: {
-          DEFAULT: '#E8A33D',
-          subtle: '#FDF6EC',
+          DEFAULT: 'rgb(var(--lumiere-rgb) / <alpha-value>)',
+          subtle: 'rgb(var(--lumiere-subtle-rgb) / <alpha-value>)',
         },
         paix: {
-          DEFAULT: '#6FA287',
-          subtle: '#F0F7F3',
+          DEFAULT: 'rgb(var(--paix-rgb) / <alpha-value>)',
+          subtle: 'rgb(var(--paix-subtle-rgb) / <alpha-value>)',
         },
         bordure: {
-          DEFAULT: '#EAE3D8',
-          strong: '#D6CBBF',
+          DEFAULT: 'rgb(var(--bordure-rgb) / <alpha-value>)',
+          strong: 'rgb(var(--bordure-strong-rgb) / <alpha-value>)',
         },
         danger: {
-          DEFAULT: '#C85250',
-          subtle: '#FDF2F2',
+          DEFAULT: 'rgb(var(--danger-rgb) / <alpha-value>)',
+          subtle: 'rgb(var(--danger-subtle-rgb) / <alpha-value>)',
+        },
+        glow: {
+          or: 'var(--glow-or)',
+          bleu: 'var(--glow-bleu)',
         },
       },
       fontFamily: {

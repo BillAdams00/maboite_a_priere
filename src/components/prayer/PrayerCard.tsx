@@ -1,3 +1,6 @@
+'use client';
+
+import { motion, useReducedMotion } from 'framer-motion';
 import { PrayerActionBtn } from './PrayerActionBtn';
 import { ShareButton } from './ShareButton';
 import { ReportModal } from './ReportModal';
@@ -22,10 +25,17 @@ function formatDate(isoDate: string): string {
 }
 
 export function PrayerCard({ prayer }: PrayerCardProps) {
+  const shouldReduceMotion = useReducedMotion();
   const categoryMeta = CATEGORIES.find(c => c.id === prayer.category);
 
   return (
-    <article className="bg-surface border border-bordure rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col justify-between">
+    <motion.article
+      initial={shouldReduceMotion ? false : { opacity: 0, y: 14 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-24px' }}
+      transition={{ duration: 0.35, ease: 'easeOut' }}
+      className="bg-surface border border-bordure rounded-2xl p-5 shadow-xs hover:shadow-md transition-shadow duration-200 flex flex-col justify-between"
+    >
       <div>
         {/* En-tête de la carte */}
         <div className="flex items-center justify-between gap-2 mb-3">
@@ -80,6 +90,6 @@ export function PrayerCard({ prayer }: PrayerCardProps) {
           <ReportModal requestId={prayer.id} />
         </div>
       </div>
-    </article>
+    </motion.article>
   );
 }
