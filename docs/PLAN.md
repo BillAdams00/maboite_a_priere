@@ -1,45 +1,56 @@
-# Ma boîte à prière — Plan d'implémentation (mobile-first)
+# Ma boîte à prière — Plan d'implémentation (web, budget zéro)
 
-> Document de référence technique et fonctionnel. **Version 2.0 — 14 septembre 2026.**
-> Pivot : le produit démarre comme **application mobile native (iOS + Android)**, sans site web
-> public pour l'instant. Le site web reste possible plus tard sur la même base (§17) mais n'est
-> **pas** construit dans cette phase.
+> Document de référence technique et fonctionnel. **Version 3.0 — 16 septembre 2026.**
+> Pivot : retour à une **application web** (Next.js 14 App Router + Supabase + Tailwind CSS,
+> déployée sur Vercel), pour raison budgétaire — pas de frais de compte développeur Apple/Google.
 > Statut : **à valider** (voir §16 « Décisions »).
+
+---
+
+## 0. Ce qui change par rapport à la v2.0 (mobile), et ce qui ne change pas
+
+**Ne change pas — travail déjà construit et testé en Phase 0, entièrement réutilisable :**
+le schéma de données central (`PrayerRequest`, `PrayerAction`, `Admin`, `AnsweredClaim`, `Report`,
+`AuditLog`, `Setting`, `DailyStat`), le chiffrement AES-256-GCM des sujets privés, le hachage du
+`manageToken` en temps constant (corrigé le 15 septembre), la validation Zod, la séparation
+service/repository, et toutes les règles métier (visibilité, exaucement, surveillance a posteriori).
+
+**Change — tout ce qui était spécifique au mobile disparaît :** l'app Expo, l'authentification par
+jeton/deep link, les modèles `MobileRefreshToken` et `AdminPushToken`, les notifications push,
+l'onglet « Mes sujets » en stockage local. On revient au modèle web : pages Next.js, Server Actions,
+cookies de session, lien de gestion envoyé au déposant.
+
+**Nouveau dans cette version :** Supabase remplace à la fois l'hébergement Postgres (déjà décidé le
+15 septembre) **et** le système d'authentification (Auth.js + JWT maison) pour les admins — un vrai
+gain de simplicité, pas seulement un changement de nom.
 
 ---
 
 ## 1. Vision produit
 
-**Ma boîte à prière** est une application chrétienne où chacun peut déposer un sujet de prière —
-en privé (visible uniquement des administrateurs) ou en public (porté par la communauté) — et où
-la communauté peut prier anonymement les uns pour les autres. Pour cette v1, l'unique porte d'entrée
-est l'**application mobile**, installée sur téléphone.
+**Ma boîte à prière** est un site chrétien où chacun peut déposer un sujet de prière — en privé
+(visible uniquement des administrateurs) ou en public (porté par la communauté) — et où la communauté
+peut prier anonymement les uns pour les autres. Retour à un point fort du web que le mobile-only avait
+sacrifié : **un lien partagé (WhatsApp, e-mail) s'ouvre pour n'importe qui**, sans installation.
 
-### Principes directeurs (ils tranchent tous les arbitrages du projet)
+### Principes directeurs (inchangés)
 
 | Principe | Conséquence concrète |
 |---|---|
-| **La confiance avant tout** | Le choix privé/public est expliqué *avant* l'envoi, jamais modifié en douce. Un sujet privé n'apparaît **jamais** dans une réponse d'API, ni dans aucun écran non-admin. |
-| **Zéro friction pour déposer** | Aucun compte requis pour déposer un sujet ou prier. 3 champs + 1 choix. Moins de 45 secondes. |
-| **Anonymat de celui qui prie** | On compte les prières, on n'affiche jamais qui a prié. Pas de profil, pas de classement. |
-| **Chaleur et paix** | Aucun élément anxiogène : pas de badge rouge agressif, pas de « viralité ». Typographie douce, blancs généreux, animations lentes, retours haptiques discrets. |
-| **Natif, pas un site déguisé** | On utilise ce que le mobile fait mieux que le web : notifications, retour haptique, « Mes sujets » sans lien à copier, partage système. |
-| **Dignité du contenu** | Surveillance a posteriori, signalement, retrait rapide, suppression douce (soft delete) — jamais de perte de données. |
+| La confiance avant tout | Le choix privé/public est expliqué *avant* l'envoi. Un sujet privé n'apparaît **jamais** dans une réponse publique. |
+| Zéro friction pour déposer | Aucun compte requis pour déposer ou prier. 3 champs + 1 choix. |
+| Anonymat de celui qui prie | On compte les prières, jamais qui a prié. |
+| Chaleur et paix | Pas d'éléments anxiogènes, typographie douce, blancs généreux. |
+| Mobile-first *(au sens web responsive)* | ~85 % de l'usage sur téléphone, via le navigateur. Conçu à 375 px d'abord. |
+| Dignité du contenu | Surveillance a posteriori, signalement, retrait rapide, suppression douce. |
 
 ### Utilisateurs et rôles
 
-1. **Le déposant** (anonyme, sans compte) — dépose un sujet depuis l'app, le retrouve dans l'onglet
-   « Mes sujets » de son téléphone (plus besoin de sauvegarder un lien, voir §7.6).
-2. **Le membre de la communauté** (anonyme, app installée) — consulte les sujets publics, appuie sur
-   « Je prie pour toi ».
-3. **Le modérateur** — surveille les dépôts publics, retire/modifie, confirme les exaucements signalés.
-4. **L'administrateur** — tout le précédent + statistiques + invitation d'autres administrateurs.
-5. **Le super-administrateur** (responsable du département) — tout + paramètres + révocation d'administrateurs. Compte indélébile.
-
-**Note honnête sur le choix mobile-only :** un sujet public partagé (ex. sur WhatsApp) ne peut être
-consulté que par quelqu'un qui a déjà installé l'app — il n'y a aucune page de secours dans un
-navigateur. C'est le compromis assumé de cette phase ; §17 explique comment l'ouvrir plus tard sans
-rien reconstruire.
+1. **Le déposant** (anonyme, sans compte) — dépose un sujet, reçoit un **lien privé de gestion**.
+2. **Le membre de la communauté** (anonyme) — consulte les sujets publics, prie.
+3. **Le modérateur** — surveille, retire, confirme les exaucements signalés.
+4. **L'administrateur** — tout le précédent + statistiques + invitation d'administrateurs.
+5. **Le super-administrateur** — tout + paramètres + révocation. Compte indélébile.
 
 ---
 
@@ -47,567 +58,299 @@ rien reconstruire.
 
 | Couche | Choix | Justification |
 |---|---|---|
-| App mobile | **Expo (React Native) + Expo Router + TypeScript strict** | Une seule base de code pour iOS et Android. Expo Router reprend le modèle de routage par fichiers (proche de Next.js App Router), ce qui limite la courbe d'apprentissage. Mises à jour OTA du JS via EAS Update sans repasser par la validation des stores à chaque correctif mineur — important pour une petite équipe bénévole. |
-| Styles | **NativeWind v4** (Tailwind pour React Native) | Même vocabulaire utilitaire et mêmes tokens de couleur/typo que prévu en §9, sans réapprendre un système de style propriétaire. |
-| Navigation | **Expo Router** (pile de fichiers `app/`) + tab bar native | Onglets : Accueil · Communauté · Déposer · Exaucés · Mes sujets. Espace admin caché derrière la connexion (§7.7). |
-| Données/serveur | **TanStack Query** | Cache, revalidation, état de chargement/erreur — mêmes patterns qu'en web. |
-| Formulaires | **React Hook Form + Zod** (schémas partagés avec le backend) | Aucune règle de validation ressaisie côté app. |
-| Stockage local | **expo-secure-store** (jetons admin, liste des sujets déposés) + **MMKV** (cache léger) | Le Keychain/Keystore protège les secrets bien mieux qu'AsyncStorage. |
-| Notifications | **expo-notifications** + **EAS Push** (relais APNs/FCM) | Alertes admin (nouveau sujet, signalement) et notification au déposant quand quelqu'un prie pour lui (§5.6 — nouveauté rendue possible par le mobile). |
-| Animations / retour | **Reanimated 3** + **Moti** + **expo-haptics** | La « douceur » demandée (§9) rendue par de vraies micro-interactions natives, pas des simili-CSS. |
-| Backend API | **Next.js 15 (route handlers uniquement, pas de pages)** + TypeScript strict | Aucune UI web pour l'instant — seulement `app/api/v1/*`. Garde la compatibilité totale avec un site web ajouté plus tard (§17) sans migration. |
-| Base de données | **PostgreSQL** (Neon, région EU) | Relationnel, agrégats temporels natifs pour les statistiques. |
-| ORM | **Prisma 6** | Migrations versionnées, typage bout-en-bout, seed. |
-| Auth (admins) | **Auth.js v5** pour l'émission du lien magique, échangé contre un **JWT access + refresh token** consommé par l'app (§5.7) | Pas de mot de passe à retenir pour des bénévoles ; le flux mobile via deep link est décrit en §5.7. |
-| E-mail transactionnel | **Resend** + React Email | Lien magique de connexion admin, invitation d'administrateurs. |
-| Anti-spam | **Cloudflare Turnstile** (mode « invisible »/managed compatible app) + honeypot + rate-limit | Protège les endpoints `api/v1` indépendamment du client. |
-| Rate limiting | **Upstash Redis** | Dépôt, prière, connexion. |
-| Validation | **Zod**, dans `packages/shared`, importé par l'app **et** le backend | Une seule source de vérité. |
-| Tests | **Vitest** (services backend) + **Jest + React Native Testing Library** (composants) + **Maestro** (E2E mobile, iOS/Android) | Maestro pilote l'app compilée, plus robuste que Detox à maintenir pour une petite équipe. |
-| Build & distribution | **EAS Build** + **EAS Submit** (App Store Connect, Google Play Console) + **EAS Update** (OTA) | Pipeline standard Expo, gère signing iOS/Android. |
-| Qualité | ESLint + Prettier + TypeScript strict + Husky + lint-staged | |
-| CI/CD | GitHub Actions → EAS (app) + Vercel (API) | Build mobile déclenché par tag, API déployée en continu. |
-| Observabilité | **Sentry** (React Native + Node) + logs structurés (pino) | |
+| Framework | **Next.js 14 (App Router) + TypeScript strict** *(demandé explicitement)* | Rendu serveur, Server Actions, un seul déploiement. Next 14 → React 18 (pas 19). |
+| Styles | **Tailwind CSS** *(demandé explicitement)* | shadcn/ui reste une option libre au-dessus si l'agent veut accélérer les composants accessibles — pas une obligation, tu n'as demandé que Tailwind. |
+| Base de données | **Supabase Postgres** *(décidé le 15/09)* | Palier gratuit, interface déjà connue. |
+| ORM | **Prisma 6, conservé** | Le schéma, les repositories, les services et les tests de la Phase 0 sont déjà écrits et validés dessus — les jeter pour réécrire en client Supabase natif coûterait du temps qu'on n'a justement plus à perdre. Prisma se connecte à Supabase comme à n'importe quel Postgres (§13, piège de connexion à lire absolument). |
+| Authentification admin | **Supabase Auth** (lien magique via `signInWithOtp`, invitation via `auth.admin.inviteUserByEmail`) *(demandé explicitement)* | Remplace entièrement Auth.js + JWT maison construits pour le mobile. Sessions en cookies httpOnly gérées par `@supabase/ssr` — plus simple, et l'envoi d'e-mail est inclus gratuitement dans Supabase (utile aussi pour l'invitation d'admins). |
+| E-mail transactionnel (alertes admin) | **Resend**, palier gratuit (100/jour) | Supabase Auth n'envoie que ses propres e-mails d'authentification — les alertes « nouveau sujet », « signalement » restent un besoin séparé. |
+| Anti-spam | **Cloudflare Turnstile** (gratuit) + honeypot + rate-limit | Inchangé. |
+| Rate limiting | **Upstash Redis** (palier gratuit) | Inchangé. |
+| Validation | **Zod**, partagé entre Server Actions et services | Inchangé dans l'esprit, déplacé dans `src/lib/validation`. |
+| Tests | **Vitest** (unitaire) + **Playwright** (E2E web) | Remplace Maestro (mobile), plus rien à faire côté app native. |
+| Déploiement | **Vercel** *(demandé explicitement)*, palier Hobby gratuit | Domaine `*.vercel.app` gratuit pour démarrer ; domaine personnalisé plus tard si budget. |
+| Qualité | ESLint + Prettier + TypeScript strict + Husky | Inchangé. |
+| Observabilité | Vercel Analytics (inclus) ; Sentry facultatif (palier gratuit) | Simplifié — pas de coût obligatoire. |
+
+**Coût total pour démarrer : 0 €.** Le seul palier payant à anticiper plus tard est Supabase Pro
+(~25 $/mois) si le projet gratuit se met en pause par inactivité une fois en production réelle (§13).
 
 ---
 
-## 3. Architecture — monorepo
+## 3. Architecture — un seul projet Next.js, pas de monorepo
+
+Le monorepo (pnpm + Turborepo, `apps/mobile` + `apps/api` + 3 packages) avait du sens pour partager du
+code entre une app mobile et une API. **Sans mobile, cette séparation n'apporte plus rien et ajoute de
+la friction.** On aplatit en un seul projet Next.js à la racine :
 
 ```
 ma-boite-a-priere/
-├─ apps/
-│  ├─ mobile/                          # Expo Router — LE produit de cette phase
-│  │  └─ src/
-│  │     ├─ app/                       # routage par fichiers
-│  │     │  ├─ (public)/
-│  │     │  │  ├─ index.tsx            # Accueil
-│  │     │  │  ├─ deposer.tsx
-│  │     │  │  ├─ communaute/index.tsx
-│  │     │  │  ├─ communaute/[slug].tsx
-│  │     │  │  ├─ exauces/index.tsx
-│  │     │  │  └─ mes-sujets/index.tsx
-│  │     │  ├─ (admin)/
-│  │     │  │  ├─ connexion.tsx
-│  │     │  │  ├─ tableau-de-bord.tsx
-│  │     │  │  ├─ sujets/index.tsx
-│  │     │  │  ├─ sujets/[id].tsx
-│  │     │  │  ├─ statistiques.tsx
-│  │     │  │  ├─ administrateurs.tsx
-│  │     │  │  ├─ parametres.tsx
-│  │     │  │  └─ journal.tsx
-│  │     │  ├─ _layout.tsx             # tab bar + guards
-│  │     │  └─ +not-found.tsx
-│  │     ├─ components/  ui/ · prayer/ · admin/
-│  │     ├─ features/    # logique d'écran (hooks TanStack Query par domaine)
-│  │     ├─ lib/         # api-client, stockage sécurisé, notifications, haptics
-│  │     └─ theme/        # tokens NativeWind (§9)
-│  └─ api/                             # Next.js — route handlers uniquement, aucune page UI
-│     └─ src/
-│        ├─ app/api/v1/                # ← contrat canonique (§10), seul et unique client aujourd'hui : l'app
-│        ├─ server/
-│        │  ├─ services/               # logique métier pure et testable
-│        │  ├─ repositories/           # accès Prisma
-│        │  ├─ auth/                   # Auth.js, guards, RBAC, émission de jetons mobiles
-│        │  └─ lib/                    # crypto, rate-limit, mailer, dates, ip-hash, push
-│        └─ prisma/  schema.prisma · migrations/ · seed.ts
-├─ packages/
-│  ├─ shared/         # schémas Zod, types, constantes, tokens de design
-│  ├─ api-client/      # client HTTP typé pour /api/v1, importé par apps/mobile
-│  └─ config/          # eslint, tsconfig, prettier communs
-├─ pnpm-workspace.yaml
-└─ turbo.json
+├─ prisma/
+│  ├─ schema.prisma        # repris de apps/api, débarrassé des modèles mobile (§4)
+│  ├─ migrations/
+│  └─ seed.ts
+├─ src/
+│  ├─ app/
+│  │  ├─ (public)/
+│  │  │  ├─ page.tsx                     # Accueil
+│  │  │  ├─ deposer/page.tsx
+│  │  │  ├─ deposer/merci/page.tsx
+│  │  │  ├─ communaute/page.tsx
+│  │  │  ├─ communaute/[slug]/page.tsx
+│  │  │  ├─ exauces/page.tsx
+│  │  │  ├─ mon-sujet/[token]/page.tsx   # remplace « Mes sujets » mobile
+│  │  │  └─ a-propos, confidentialite, mentions-legales
+│  │  ├─ admin/
+│  │  │  ├─ connexion/page.tsx           # Supabase Auth — lien magique
+│  │  │  ├─ page.tsx                     # Tableau de bord
+│  │  │  ├─ sujets/page.tsx
+│  │  │  ├─ sujets/[id]/page.tsx
+│  │  │  ├─ statistiques/page.tsx
+│  │  │  ├─ administrateurs/page.tsx
+│  │  │  ├─ parametres/page.tsx
+│  │  │  └─ journal/page.tsx
+│  │  ├─ auth/callback/route.ts          # échange du lien magique Supabase (PKCE)
+│  │  ├─ api/
+│  │  │  └─ cron/daily-stats/route.ts    # seul endpoint HTTP restant, pour Vercel Cron
+│  │  └─ layout.tsx, error.tsx, not-found.tsx, opengraph-image.tsx
+│  ├─ components/  ui/ · prayer/ · admin/ · layout/
+│  ├─ server/
+│  │  ├─ actions/        # Server Actions = seul mécanisme de mutation (plus besoin d'api/v1 public)
+│  │  ├─ services/       # repris tels quels depuis apps/api/src/server/services
+│  │  ├─ repositories/   # repris tels quels depuis apps/api/src/server/repositories
+│  │  ├─ supabase/       # clients Supabase : browser.ts, server.ts, middleware.ts
+│  │  └─ lib/            # crypto.ts (repris tel quel), rate-limit, dates
+│  └─ lib/validation/    # schémas Zod (repris depuis packages/shared/src/schemas)
+├─ middleware.ts          # rafraîchit la session Supabase à chaque requête
+└─ .env.local
 ```
 
-**Règle d'or, inchangée du plan v1 :** un écran ne contient jamais de logique métier.
-`app/route.tsx` (mobile) ou `api/v1/route.ts` (backend) → `service` → `repository`. Les services sont
-testables sans HTTP ni base (injection du repository) et sont **le seul endroit où une règle métier
-est écrite** — l'app et, plus tard, un site web, ne font qu'appeler `api/v1`.
+**Règle d'or, inchangée :** une page ou une Server Action ne contient jamais de logique métier —
+`page.tsx` → `action` → `service` → `repository`. C'est exactement la structure déjà en place dans
+`apps/api/src/server/`, il n'y a qu'à la déplacer.
 
-**Sécurité par construction :** un seul point d'accès aux sujets publics
-(`prayerRepository.findPublicFeed()`) qui applique systématiquement les filtres
-`visibility = PUBLIC AND status = APPROVED AND deletedAt IS NULL AND (non exaucé OU exaucé < 5 j)`.
-Aucune autre requête publique ne touche la table. Test unitaire dédié + test E2E de non-fuite.
+**Sécurité par construction, inchangée :** `PrayerRepository.findPublicFeed()` reste l'unique point
+d'accès aux sujets publics, avec son filtre strict déjà écrit et testé.
+
+**Point d'architecture important pour l'agent :** Prisma se connecte avec un rôle Postgres privilégié
+qui **contourne le Row Level Security (RLS) de Supabase**. Ce n'est pas un oubli à corriger — la
+frontière de sécurité de cette application, c'est le code serveur (RBAC dans les services, filtre de
+visibilité dans les repositories), exactement comme conçu depuis le début. Ne pas essayer de dupliquer
+la protection en RLS, ça ajouterait de la complexité sans bénéfice ici.
 
 ---
 
-## 4. Modèle de données (Prisma)
-
-Identique au plan v1 dans son ensemble — le modèle de données n'a jamais été « web » ou « mobile »,
-c'est le bénéfice direct d'avoir isolé la logique métier dès le départ. Deux évolutions pour le mobile :
+## 4. Modèle de données — deltas précis à appliquer sur `apps/api/prisma/schema.prisma`
 
 ```prisma
-enum Visibility   { PRIVATE PUBLIC }
-enum RequestStatus{ PENDING APPROVED REJECTED ARCHIVED }
-enum AdminRole    { SUPER_ADMIN ADMIN MODERATOR }
-enum AdminStatus  { INVITED ACTIVE SUSPENDED }
-
 model PrayerRequest {
-  id            String    @id @default(cuid())
-  publicSlug    String    @unique
-  manageToken   String    @unique               // conservé pour la récupération admin (§5.6), l'app ne le montre plus à l'utilisateur
-
-  firstName     String    @db.VarChar(60)
-  lastName      String    @db.VarChar(60)       // jamais exposé publiquement
-  displayAsAnonymous Boolean @default(false)
-  content       String    @db.Text              // chiffré si visibility = PRIVATE (§11)
-  contentIv     String?
-  category      String?   @db.VarChar(40)
-
-  visibility    Visibility
-  status        RequestStatus @default(PENDING)
-  moderatedById String?
-  moderatedAt   DateTime?
-  moderationNote String?  @db.Text
-
-  isAnswered    Boolean   @default(false)
-  answeredAt    DateTime?
-  answeredNote  String?   @db.Text
-  answeredBy    String?
-
-  prayerCount   Int       @default(0)
-  viewCount     Int       @default(0)
-
-  ownerPushToken String?  @db.VarChar(255)      // ★ nouveau — jeton Expo Push du device déposant, pour le notifier (§5.6)
-
-  ipHash        String?   @db.VarChar(64)
-  userAgent     String?   @db.VarChar(255)
-  locale        String    @default("fr")
-
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime?
-
-  prayers       PrayerAction[]
-  reports       Report[]
-  answeredClaim AnsweredClaim?
-
-  @@index([visibility, status, isAnswered, createdAt(sort: Desc)])
-  @@index([createdAt])
-  @@index([answeredAt])
-}
-
-model PrayerAction {
-  id         String   @id @default(cuid())
-  requestId  String
-  request    PrayerRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  visitorId  String   @db.VarChar(64)           // uuid généré et stocké dans expo-secure-store (équivalent du cookie web)
-  ipHash     String?  @db.VarChar(64)
-  createdAt  DateTime @default(now())
-
-  @@unique([requestId, visitorId])
-  @@index([createdAt])
+  // ... tous les champs existants, SAUF :
+  // ownerPushToken String?  ← À SUPPRIMER (mobile uniquement)
 }
 
 model Admin {
-  id           String      @id @default(cuid())
-  email        String      @unique
-  firstName    String
-  lastName     String
-  role         AdminRole   @default(MODERATOR)
-  status       AdminStatus @default(INVITED)
-  invitedById  String?                          // pas de mot de passe : lien magique uniquement
-  lastLoginAt  DateTime?
-  createdAt    DateTime    @default(now())
-  deletedAt    DateTime?
-  refreshTokens MobileRefreshToken[]
-  pushTokens    AdminPushToken[]
+  id            String      @id @default(cuid())
+  authUserId    String      @unique   // ★ NOUVEAU — lie la ligne au user Supabase Auth (auth.users.id)
+  email         String      @unique
+  firstName     String
+  lastName      String
+  role          AdminRole   @default(MODERATOR)
+  status        AdminStatus @default(INVITED)
+  invitedById   String?
+  lastLoginAt   DateTime?
+  createdAt     DateTime    @default(now())
+  deletedAt     DateTime?
+  // refreshTokens MobileRefreshToken[]  ← SUPPRIMÉ
+  // pushTokens    AdminPushToken[]      ← SUPPRIMÉ
 }
 
-model AdminInvitation {
-  id         String    @id @default(cuid())
-  email      String
-  role       AdminRole
-  tokenHash  String    @unique
-  invitedById String
-  expiresAt  DateTime
-  acceptedAt DateTime?
-  revokedAt  DateTime?
-  createdAt  DateTime  @default(now())
-  @@index([email])
-}
-
-model VerificationToken {                        // requis par Auth.js (émission du lien magique)
-  identifier String
-  token      String   @unique
-  expires    DateTime
-  @@unique([identifier, token])
-}
-
-model MobileRefreshToken {                        // ★ central dès la v1 — l'app EST le client
-  id         String   @id @default(cuid())
-  adminId    String
-  admin      Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  tokenHash  String   @unique                     // le clair ne vit que dans expo-secure-store
-  deviceLabel String?                             // "iPhone de Marie" — affiché dans /parametres
-  expiresAt  DateTime                             // 30 jours glissants
-  revokedAt  DateTime?
-  createdAt  DateTime @default(now())
-  @@index([adminId])
-}
-
-model AdminPushToken {                            // ★ nouveau — alertes de modération en push natif
-  id         String   @id @default(cuid())
-  adminId    String
-  admin      Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  expoPushToken String @unique
-  createdAt  DateTime @default(now())
-  @@index([adminId])
-}
-
-model AnsweredClaim {
-  id         String   @id @default(cuid())
-  requestId  String   @unique
-  request    PrayerRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  note       String?  @db.Text
-  confirmedById String?
-  confirmedAt   DateTime?
-  rejectedAt    DateTime?
-  createdAt  DateTime @default(now())
-}
-
-model Report {
-  id         String   @id @default(cuid())
-  requestId  String
-  request    PrayerRequest @relation(fields: [requestId], references: [id])
-  reason     String
-  visitorId  String?
-  handledAt  DateTime?
-  createdAt  DateTime @default(now())
-}
-
-model AuditLog {
-  id         String   @id @default(cuid())
-  actorId    String?
-  actorEmail String?
-  action     String
-  entityType String
-  entityId   String
-  metadata   Json?
-  ipHash     String?
-  createdAt  DateTime @default(now())
-  @@index([createdAt(sort: Desc)])
-  @@index([entityType, entityId])
-}
-
-model Setting {
-  key       String   @id
-  value     Json
-  updatedAt DateTime @updatedAt
-  updatedBy String?
-}
-
-model DailyStat {
-  day             DateTime @id @db.Date
-  requestsTotal   Int  @default(0)
-  requestsPublic  Int  @default(0)
-  requestsPrivate Int  @default(0)
-  requestsAnswered Int @default(0)
-  prayers         Int  @default(0)
-  uniquePrayers   Int  @default(0)
-  visits          Int  @default(0)
-}
+// MobileRefreshToken   ← MODÈLE ENTIER À SUPPRIMER
+// AdminPushToken       ← MODÈLE ENTIER À SUPPRIMER
+// VerificationToken    ← MODÈLE ENTIER À SUPPRIMER (c'était pour Auth.js ; Supabase Auth gère
+//                         son propre schéma `auth.*`, invisible et intouché par Prisma)
 ```
 
-### Paramètres (`Setting`) livrés par défaut
+Tout le reste (`PrayerAction`, `AdminInvitation`, `AnsweredClaim`, `Report`, `AuditLog`, `Setting`,
+`DailyStat`) est repris sans modification.
 
-| clé | défaut | effet |
-|---|---|---|
-| `moderation.publicRequiresApproval` | `false` | Publication immédiate. Réactivable en un clic depuis l'app admin si besoin. |
-| `moderation.autoHoldSuspicious` | `true` | URL, e-mail, téléphone ou terme de liste noire → mis en attente + alerte push admin. |
-| `answered.hideAfterDays` | `5` | Délai de masquage des sujets exaucés dans le mur. |
-| `answered.showArchivePublicly` | `true` | Onglet « Exaucés » visible sans connexion. |
-| `community.accessMode` | `"open"` | Ouvert à tous ceux qui ont l'app installée. |
-| `site.timezone` | `"Europe/Paris"` | Base des découpages hebdo/mensuel/annuel. |
-| `notifications.privateRequestPush` | `true` | Alerte push immédiate aux admins pour un sujet privé. |
-| `notifications.ownerPrayedPush` | `true` | Notifie le déposant quand quelqu'un prie pour son sujet (§5.6). |
-| `notifications.weeklyDigest` | `true` | Récapitulatif hebdomadaire push + e-mail aux admins. |
+### Paramètres (`Setting`) — inchangés dans leur ensemble
+`moderation.publicRequiresApproval` (`false`), `moderation.autoHoldSuspicious` (`true`),
+`answered.hideAfterDays` (`5`), `answered.showArchivePublicly` (`true`), `community.accessMode`
+(`"open"`), `site.timezone` (`"Europe/Paris"`), `notifications.privateRequestEmail` (`true`),
+`notifications.weeklyDigest` (`true`). Les clés `notifications.*Push` de la v2.0 disparaissent.
 
 ---
 
 ## 5. Règles métier
 
-### 5.1 Dépôt d'un sujet
-1. Validation Zod : prénom 2–40, nom 2–40, sujet **10–1000 caractères**, visibilité obligatoire, catégorie facultative.
-2. Nettoyage : trim, normalisation des espaces, suppression de tout HTML, refus des URLs, détection de doublon (même `ipHash` + contenu identique < 10 min → rejet silencieux).
-3. Turnstile + rate-limit **3 dépôts / heure / appareil**, 10 / jour.
-4. Statut initial :
-   - `PRIVATE` → `APPROVED` immédiatement, contenu chiffré, push aux admins.
-   - `PUBLIC` → `APPROVED` immédiatement, sauf contenu suspect (§5.4) → `PENDING` + push admin.
-5. Génération de `publicSlug` et `manageToken` côté serveur. **L'app ne montre plus de lien à copier** :
-   dès la création réussie, `{requestId, manageToken}` est ajouté à une liste locale chiffrée dans
-   `expo-secure-store` et le sujet apparaît instantanément dans l'onglet **« Mes sujets »** (§5.6, §7.6).
-   Si l'utilisateur accepte les notifications, `ownerPushToken` est enregistré.
-6. Réponse : écran de confirmation chaleureux, animé, avec retour haptique doux.
+### 5.1 Dépôt d'un sujet — inchangé, retirer `pushToken` de l'entrée
+Validation Zod identique (prénom/nom 2–40, sujet 10–1000, URLs interdites, HTML nettoyé). Turnstile +
+rate-limit (3/h, 10/jour). `PRIVATE` → chiffré, `APPROVED` immédiat. `PUBLIC` → `APPROVED` immédiat
+sauf contenu suspect → `PENDING` + e-mail Resend aux admins. Génération de `publicSlug` et
+`manageToken` (haché avant stockage, comme déjà corrigé).
 
 ### 5.2 « Je prie pour toi »
-- `visitorId` (uuid v4) généré à la première ouverture de l'app, stocké dans `expo-secure-store`
-  (équivalent mobile du cookie web).
-- Insertion `PrayerAction` + `prayerCount++` en transaction, `ON CONFLICT DO NOTHING` : idempotent.
-- Retour haptique léger (`expo-haptics`) + animation du compteur en fondu. État persistant :
-  « Tu as prié pour ce sujet 🙏 ». Action non annulable.
-- Rate-limit 60 prières / heure / appareil.
-- Si `notifications.ownerPrayedPush` et que le sujet a un `ownerPushToken` : notification discrète et
-  **groupée** au déposant (« 3 personnes ont prié pour toi aujourd'hui » plutôt qu'un push par prière —
-  évite le spam de notifications, respecte le principe de calme du §1). Envoi différé et agrégé par
-  cron (toutes les 3 h), pas en temps réel.
+`visitorId` en cookie httpOnly (au lieu de `expo-secure-store`), généré à la première visite. Le reste
+— transaction idempotente, `ON CONFLICT DO NOTHING`, rate-limit 60/h — est identique.
 
-### 5.3 Sujets exaucés
-- **Seul un administrateur confirme.** Le déposant, depuis « Mes sujets », a un bouton
-  « Dieu a répondu 🙌 » qui crée un `AnsweredClaim` — un **signalement**, pas un marquage — visible
-  dans le tableau de bord admin (push immédiat).
-- À la confirmation : `isAnswered = true`, `answeredAt = now()`, `answeredBy = adminId`, témoignage
-  facultatif (≤ 500 caractères).
-- **Masquage du mur après 5 jours**, jamais de suppression :
-  `WHERE NOT (isAnswered AND answeredAt < now() - interval '5 days')`
-- Toujours retrouvable dans l'onglet **« Exaucés »** (archives, filtre par mois, recherche) et dans la
-  recherche admin complète.
+### 5.3 Sujets exaucés — retour au lien de gestion web
+Le déposant utilise son **lien privé `/mon-sujet/[token]`** (au lieu de l'onglet « Mes sujets ») pour
+créer un `AnsweredClaim`. Seul un admin confirme (`isAnswered = true`). Masquage du mur à J+5, jamais
+de suppression, toujours retrouvable dans `/exauces` et côté admin.
 
-### 5.4 Surveillance a posteriori *(publication immédiate)*
-- **Flux « Derniers dépôts »** en tête du tableau de bord admin, avec push instantané à chaque nouveau
-  sujet public.
-- **Retrait en un clic depuis la notification push** (deep link direct vers l'action de retrait,
-  sans naviguer dans l'app).
-- **Bouton « Signaler »** sur chaque carte → `Report` → push admin dès 1 signalement, retrait
-  automatique réversible au 3ᵉ.
-- **File `PENDING`** pour les contenus auto-retenus (§5.1) et réactivable comme file principale via
-  `moderation.publicRequiresApproval`.
-- Actions admin : **Publier**, **Retirer** (motif), **Modifier**, **Basculer en privé**, **Supprimer**
-  (soft delete). Tout est journalisé dans `AuditLog`.
+### 5.4 Surveillance a posteriori — alertes par e-mail (Resend) au lieu de push
+File `PENDING` pour les contenus auto-retenus. Alerte Resend à chaque nouveau sujet public avec un
+**lien de retrait en un clic** (jeton signé, sans connexion). Signalement → e-mail dès 1, retrait
+automatique réversible au 3ᵉ. Actions admin identiques (Publier, Retirer, Modifier, Basculer en privé,
+Supprimer), toutes journalisées.
 
-> **Exigence App Store / Play Store à ne pas sous-estimer :** une app avec contenu public généré par
-> les utilisateurs doit démontrer, dès la soumission, un mécanisme de signalement, un moyen de bloquer/
-> retirer un contenu rapidement, et un contact de support visible dans l'app (règle 1.2 d'Apple —
-> équivalent côté Google). Ce plan les couvre déjà nativement (signalement, retrait express, audit) —
-> à vérifier explicitement pendant la préparation de la fiche store (§13).
+### 5.5 Administration des comptes — via Supabase Auth
+- Un `ADMIN`/`SUPER_ADMIN` invite par e-mail via `supabase.auth.admin.inviteUserByEmail(email)` —
+  Supabase envoie l'e-mail et crée l'utilisateur Auth ; à l'acceptation, une ligne `Admin` est créée
+  (ou complétée) avec `authUserId` renseigné et le rôle choisi à l'invitation.
+- Connexion ultérieure : `signInWithOtp({ email })` (lien magique), session en cookie via
+  `@supabase/ssr`, `middleware.ts` la rafraîchit à chaque requête.
+- RBAC : chaque Server Action admin vérifie la session Supabase **et** relit la ligne `Admin`
+  correspondante (rôle, `status = ACTIVE`) avant d'agir — la session Supabase prouve *qui*, la table
+  `Admin` autorise *quoi*.
+- Seul un `SUPER_ADMIN` promeut/suspend/supprime/modifie les paramètres. Le dernier `SUPER_ADMIN` est
+  protégé (garde-fou serveur + test), inchangé.
 
-### 5.5 Administration des comptes
-- Un `ADMIN`/`SUPER_ADMIN` invite par e-mail depuis l'app : `AdminInvitation` + lien signé (7 j),
-  ouvrable depuis n'importe quel client mail, qui déclenche un **deep link** vers l'app pour finaliser.
-- Seul le `SUPER_ADMIN` peut promouvoir, suspendre, supprimer, modifier les paramètres.
-- Le dernier `SUPER_ADMIN` ne peut être ni supprimé ni rétrogradé (garde-fou serveur + test).
-
-### 5.6 « Mes sujets » — remplace le lien de gestion web
-Avantage direct du mobile sur le web : plus besoin de demander à l'utilisateur de sauvegarder un lien.
-- À chaque dépôt réussi, `{requestId, manageToken}` est ajouté à une liste locale (`expo-secure-store`).
-- L'onglet **« Mes sujets »** liste tous les sujets déposés depuis cet appareil : statut, nombre de
-  prières reçues, bouton « Dieu a répondu 🙌 », bouton « Passer en privé », bouton « Supprimer ».
-- **Limite assumée** : en cas de réinstallation ou de changement de téléphone, la liste locale est
-  perdue (le sujet reste en base, juste plus « retrouvable » depuis l'app). Parade : un admin peut
-  toujours le retrouver et agir dessus après vérification d'identité de vive voix — comme en v1 web.
-  Un export/sauvegarde chiffrée de cette liste (optionnelle, hors scope v1) pourra être ajoutée si le
-  besoin se confirme à l'usage.
-
-### 5.7 Authentification admin par deep link (remplace le cookie de session web)
-1. L'admin saisit son e-mail dans `(admin)/connexion`.
-2. Le backend envoie un e-mail (Resend) contenant un lien `maboiteapriere://auth?token=...`
-   (+ un lien HTTPS universel de repli qui redirige vers l'app si installée, sinon vers une page
-   minimale « Ouvre le lien depuis ton téléphone »).
-3. Le tap sur le lien ouvre l'app, qui poste le jeton à `POST /api/v1/auth/mobile/exchange` (§10) et
-   reçoit `{accessToken (15 min), refreshToken (30 j)}`, stockés dans `expo-secure-store`.
-4. `accessToken` est renouvelé silencieusement via `refreshToken` ; chaque appareil connecté apparaît
-   dans `(admin)/parametres` (`deviceLabel`) et peut être révoqué à distance par un `SUPER_ADMIN`.
+### 5.6 Lien de gestion (remplace « Mes sujets » mobile)
+Retour au mécanisme de la v1.1 : à la confirmation de dépôt, la page affiche le lien
+`/mon-sujet/<token>` avec bouton copier + rappel explicite de le conserver. Amélioration simple et
+gratuite par rapport à la v1.1 : mémoriser les derniers sujets déposés dans le `localStorage` du
+navigateur (confort, pas mécanisme de sécurité) pour que l'utilisateur qui revient sur le même
+appareil retrouve ses sujets sans ressortir le lien.
 
 ---
 
-## 6. Statistiques (dans l'app admin)
+## 6. Statistiques — inchangé dans le fond, rendu web
 
-Trois périodes : **hebdomadaire** (semaine ISO), **mensuelle**, **annuelle**, fuseau `Europe/Paris`.
-Écran `(admin)/statistiques` avec sélecteur de période et navigation précédent/suivant.
-
-**Indicateurs** : sujets déposés (total, privé/public, évolution %), sujets publiés/retirés et délai
-médian avant retrait s'il y a lieu, prières et **prieurs uniques**, sujets exaucés et délai médian
-dépôt→exaucement, moyenne de prières par sujet, top des sujets les plus portés (anonymisé si besoin),
-répartition par catégorie, courbe d'évolution, heatmap jours/heures de dépôt.
-
-**Choix de rendu sur mobile :** graphiques simplifiés (courbes et barres, `victory-native` ou
-`react-native-gifted-charts`) — pas de tableaux denses façon tableur, l'écran reste tactile et lisible
-à une main. **Export CSV** envoyé par e-mail à l'admin depuis l'app plutôt qu'un téléchargement de
-fichier (contrainte des sandboxes mobiles).
-
-**Implémentation inchangée** : requêtes sur `DailyStat`, pré-agrégée par cron nocturne + rattrapage du
-jour en cours en direct.
+Hebdomadaire / mensuel / annuel, fuseau `Europe/Paris`, agrégats sur `DailyStat` (cron nocturne),
+export CSV téléchargeable directement (plus besoin de l'envoyer par e-mail comme sur mobile — un vrai
+gain de simplicité du web). Graphiques via une lib légère (Recharts ou Chart.js) sur `/admin/statistiques`.
 
 ---
 
-## 7. Spécification écran par écran
+## 7. Écrans (reprend la spec « page par page » de la v1.1, toujours valide)
 
-### 7.1 Accueil (onglet)
-- Titre « Ma boîte à prière », texte d'intro fourni, verset Matthieu 18:19 (LSG) en belle composition.
-- **CTA primaire** flottant « Déposer un sujet de prière » (bouton central de la tab bar, très visible).
-- **CTA secondaire** « Découvrir les sujets de prière » → onglet Communauté.
-- Bandeau vivant : « X sujets portés cette semaine · Y prières élevées ».
-- 3 étapes : *Tu écris · Tu choisis · La communauté prie*. Derniers exaucés (3 cartes). FAQ courte.
-- Demande de permission notifications introduite ici, avec explication du bénéfice (« sois prévenu
-  quand quelqu'un prie pour toi »), **jamais** au premier lancement brut (meilleur taux d'acceptation).
+| Page | Contenu clé |
+|---|---|
+| **Accueil `/`** | Texte d'intro fourni, verset Matthieu 18:19 (LSG), CTA « Déposer un sujet de prière » + « Découvrir les sujets de prière », bandeau vivant, 3 étapes, derniers exaucés, FAQ. |
+| **Déposer `/deposer`** | Prénom, Nom, Sujet, catégorie facultative, bloc confidentialité (texte exact fourni par l'utilisateur — 🔒 Privé / 🌍 Public), bouton « Déposer mon sujet ». |
+| **Confirmation `/deposer/merci`** | *« Ton sujet a bien été déposé 🙏 — Des personnes pourront maintenant prier pour toi. »* + lien de gestion à copier (§5.6). |
+| **Communauté `/communaute`** | Cartes des sujets publics : prénom, sujet, date, nombre de prières, bouton « Je prie pour toi 🙏 », filtres, pagination. |
+| **Exaucés `/exauces`** | Archives par mois, témoignages, recherche. |
+| **Mon sujet `/mon-sujet/[token]`** | Statut, nombre de prières, actions (signaler exaucement, passer en privé, supprimer). |
+| **Admin `/admin/*`** | Connexion (lien magique), tableau de bord, sujets, statistiques, administrateurs, paramètres, journal — détail identique à la v1.1 §7.7. |
 
-### 7.2 Déposer
-- Prénom · Nom · Sujet (compteur de caractères) · Catégorie facultative · « Publier sans mon prénom ».
-- Bloc confidentialité, cartes appuyables, texte exact :
-  > **Confidentialité de votre sujet**
-  > 🔒 **Privé** — Votre sujet sera uniquement accessible aux administrateurs de Ma boîte à prière.
-  > 🌍 **Public** — Votre sujet sera visible par la communauté afin que d'autres personnes puissent prier pour vous.
-- Bouton **« Déposer mon sujet »**, état de chargement, clavier géré proprement (KeyboardAvoidingView).
-- Brouillon sauvegardé localement (perte de réseau/appli fermée par erreur).
-
-### 7.3 Confirmation
-- **« Ton sujet a bien été déposé 🙏 — Des personnes pourront maintenant prier pour toi. »**
-- Animation douce (Moti/Reanimated) + haptique léger, respecte la réduction de mouvement système.
-- Rappel du choix de confidentialité. CTA « Voir dans Mes sujets » et « Prier pour les autres ».
-
-### 7.4 Communauté (onglet)
-- Liste native performante (`FlashList`) de cartes : prénom (ou « Un frère · une sœur »), sujet
-  (repliable), date relative, **« N personnes ont prié »**, bouton **« Je prie pour toi 🙏 »** (retour
-  haptique), badge catégorie, badge « Exaucé 🙌 » le cas échéant, action « Signaler ».
-- Filtres : Tous · Par catégorie · Plus récents / Ceux qui ont besoin de toi. Pull-to-refresh natif.
-- Pagination par curseur, squelettes de chargement, état vide chaleureux.
-
-### 7.5 Exaucés (onglet)
-- Frise par mois, témoignages, recherche plein texte.
-
-### 7.6 Mes sujets (onglet) — voir §5.6
-- Liste des sujets déposés depuis cet appareil, statut, actions (« Dieu a répondu 🙌 », passer en
-  privé, supprimer).
-
-### 7.7 Espace admin (accès caché, pas un onglet public)
-- Point d'entrée discret depuis un écran « Plus » ou un tap long sur le logo (à trancher avec le
-  responsable du département).
-- `(admin)/connexion` → lien magique (§5.7).
-- `tableau-de-bord` : derniers dépôts à relire, exaucements à confirmer, signalements en attente,
-  contenus auto-retenus, chiffres du jour/semaine.
-- `sujets` : liste filtrable (visibilité, statut, exaucé, période, recherche), détail, actions.
-- `statistiques` : §6.
-- `administrateurs` : liste, rôle, dernière connexion, inviter, révoquer.
-- `parametres` : clés de `Setting` expliquées simplement, liste des appareils connectés (révocation).
-- `journal` : audit consultable.
+*(Cette spec sera affinée dès que tes captures d'écran d'inspiration seront disponibles — voir ma
+question plus haut dans la conversation.)*
 
 ---
 
 ## 8. Accès à la communauté
 
-**Décision validée : `open`.** N'importe qui ayant installé l'app peut consulter et prier, sans
-compte. Les modes `code` et `members` restent possibles via `community.accessMode` sans changement
-d'architecture, si l'église souhaite un jour restreindre l'accès.
+Inchangé : **`open`** par défaut. Bénéfice concret du retour au web : un sujet partagé sur WhatsApp ou
+par SMS s'ouvre directement dans le navigateur, pour n'importe qui — la limite du mobile-only (§1 de la
+v2.0) disparaît d'elle-même.
 
 ---
 
-## 9. Identité visuelle et design system (mobile)
+## 9. Identité visuelle
 
-Intention inchangée : paix, espérance, chaleur, lumière.
+Tokens inchangés (à réajuster avec tes captures) :
 
+```css
+--fond #FBF8F3   --surface #FFFFFF   --encre #1C2541   --encre-douce #55607A
+--primaire #2F4A78   --lumiere #E8A33D   --paix #6FA287   --bordure #EAE3D8
 ```
---fond          #FBF8F3   crème chaud
---surface       #FFFFFF
---encre         #1C2541   bleu nuit profond — textes
---encre-douce   #55607A
---primaire      #2F4A78   bleu confiance — CTA
---lumiere       #E8A33D   ambre doré — espérance, badge exaucé
---paix          #6FA287   vert sauge — validations
---bordure       #EAE3D8
-```
-*(À réaligner sur les captures d'inspiration à venir.)*
 
-- **Typographie** : titres serif chaleureux (Fraunces/Lora via `expo-font`), texte sans humaniste
-  (Inter/Plus Jakarta Sans). Respect du **Dynamic Type** (iOS) / mise à l'échelle système (Android) —
-  ne jamais figer une taille de police en dur.
-- **Formes** : rayons 16–24, ombres douces, cartes respirantes.
-- **Retour tactile** : haptique léger sur « Je prie », sur la confirmation de dépôt, jamais sur la
-  navigation courante (pour ne pas fatiguer).
-- **Mode sombre** natif (beaucoup de prières se déposent le soir), tokens définis pour les deux thèmes.
-- **Accessibilité** : VoiceOver/TalkBack sur tous les éléments interactifs, cibles tactiles ≥ 44×44 pt,
-  contrastes ≥ 4.5:1, `reduceMotion` respecté, focus clavier pour les claviers Bluetooth.
-- **Icône d'app et écran de lancement** soignés — c'est la première image de la confiance donnée avant
-  même l'ouverture.
+Typographie serif chaleureuse pour les titres (Fraunces/Lora), sans humaniste pour le texte (Inter/Plus
+Jakarta Sans). Mode sombre prévu dès les tokens. WCAG 2.2 AA. PWA installable en option gratuite plus
+tard — un bon compromis « sensation d'app » sans frais de store (voir §17 de la v2.0, toujours valable).
 
 ---
 
-## 10. Contrats d'API
+## 10. Contrats — Server Actions comme mécanisme principal
 
-`app/api/v1/*` est **le seul et unique contrat** consommé aujourd'hui par l'app mobile (et,
-demain, par un site web sans aucune modification — §17).
+Sans client mobile à servir, plus besoin d'exposer un `api/v1` public : les Server Actions
+redeviennent le mécanisme direct, comme dans le plan v1.1. Seule exception HTTP : l'endpoint de cron
+(`GET /api/cron/daily-stats`, protégé par le secret Vercel Cron) et le callback Supabase Auth
+(`/auth/callback`).
 
-| Opération | Endpoint `api/v1` | Entrée | Sortie / règles |
-|---|---|---|---|
-| Créer un sujet | `POST /api/v1/prayer-requests` | `{firstName,lastName,content,visibility,category?,anonymous?,turnstileToken,pushToken?}` | `{id, manageToken}` · rate-limit · Turnstile |
-| Flux communauté | `GET /api/v1/prayer-requests?cursor&category&sort` | — | `{items[], nextCursor}` · jamais de `lastName`, ni de contenu privé |
-| Prier | `POST /api/v1/prayer-requests/:slug/prayers` | `{slug}` | `{prayerCount, alreadyPrayed}` · idempotent |
-| Signaler | `POST /api/v1/prayer-requests/:slug/reports` | `{slug, reason}` | `204` |
-| Gérer un de mes sujets | `PATCH /api/v1/my-requests/:id` (header `X-Manage-Token`) | `{action:'claimAnswered'\|'private'\|'delete', note?}` | Vérif. hash à temps constant ; `claimAnswered` crée un `AnsweredClaim` |
-| Modérer | `PATCH /api/v1/admin/prayer-requests/:id` | `{decision, note?}` | RBAC (Bearer) + audit |
-| Confirmer un exaucement | `POST /api/v1/admin/answered-claims/:id/resolve` | `{confirm, note?}` | RBAC + audit |
-| Retrait express (depuis push) | `POST /api/v1/moderation/retirer` | `{token signé}` | Jeton HMAC 48 h, usage unique |
-| Stats | `GET /api/v1/admin/stats?period=week\|month\|year&offset=0` | — | Agrégats §6 |
-| Inviter un admin | `POST /api/v1/admin/administrators/invitations` | `{email, role}` | `ADMIN`+ requis |
-| Connexion mobile | `POST /api/v1/auth/mobile/exchange` | `{magicLinkToken}` | `{accessToken, refreshToken}` (§5.7) |
-| Rafraîchir la session | `POST /api/v1/auth/mobile/refresh` | `{refreshToken}` | `{accessToken}` ; révocable dans `parametres` |
-| Enregistrer un jeton push (déposant) | `PATCH /api/v1/prayer-requests/:id/push-token` (header `X-Manage-Token`) | `{expoPushToken}` | Alimente `ownerPushToken` |
-| Enregistrer un jeton push (admin) | `POST /api/v1/admin/push-tokens` | `{expoPushToken, deviceLabel}` | RBAC |
-| Cron agrégat | `GET /api/v1/cron/daily-stats` | header secret | Remplit `DailyStat` |
-
-Toutes les entrées passent par `packages/shared` (Zod). Toutes les mutations admin passent par
-`requireRole()` côté serveur, sur la base du `Authorization: Bearer <accessToken>`.
+| Opération | Mécanisme | Notes |
+|---|---|---|
+| Créer un sujet | Server Action `createPrayerRequest` | rate-limit, Turnstile |
+| Flux communauté | Lecture directe (Server Component) via `PrayerRepository.findPublicFeed()` | pagination par curseur |
+| Prier | Server Action `prayForRequest` | idempotent |
+| Signaler | Server Action `reportRequest` | |
+| Gérer son sujet | Server Action `updateOwnRequest` | vérifie le hash du `manageToken` |
+| Modérer / confirmer exaucement | Server Actions admin | RBAC (session Supabase + table `Admin`) + audit |
+| Inviter un admin | Server Action `inviteAdmin` | `supabase.auth.admin.inviteUserByEmail` |
+| Stats | Server Component / Server Action | agrégats `DailyStat` |
+| Cron agrégat | `GET /api/cron/daily-stats` | header secret Vercel Cron |
 
 ---
 
 ## 11. Sécurité et vie privée (RGPD)
 
-1. **Cloisonnement strict** des sujets privés, test E2E qui tente d'y accéder par id, par API et par flux.
-2. **Chiffrement applicatif** du contenu privé (AES-256-GCM, clé en variable d'environnement).
-3. **Jetons en Keychain/Keystore** via `expo-secure-store` — jamais dans AsyncStorage en clair.
-4. **Pas d'IP en clair** — uniquement `SHA-256(ip + PEPPER)`, purgé à 90 jours.
-5. **Tokens serveur** (`manageToken`, invitations, refresh) : aléatoire cryptographique, stockés hachés,
-   comparaison à temps constant.
-6. **API** : CORS restreint à l'origine de l'app (scheme + bundle id), CSP/HSTS sur les rares pages web
-   de repli (universal links, retrait express), rate-limit partout.
-7. **Auth** : access token 15 min, refresh token 30 j révocable par appareil, rate-limit login 5/15 min,
-   journalisation des connexions.
-8. **RGPD** : écran de confidentialité clair dans l'app, base légale = consentement explicite à la
-   publication, droit de suppression via « Mes sujets » ou demande admin, aucun tracker publicitaire,
-   hébergement UE, durée de conservation documentée. **App Tracking Transparency (iOS)** : non
-   applicable, l'app ne fait aucun tracking publicitaire — le préciser dans la fiche store évite un
-   aller-retour de revue.
-9. **Sauvegardes** : PITR de l'hébergeur + export hebdomadaire chiffré.
-10. **Contenu sensible** : message d'orientation d'urgence dans l'écran de confirmation et les CGU
-    (« En cas d'urgence ou de danger, contacte les secours (112) ou un responsable de l'église »).
+Inchangé dans ses principes : cloisonnement strict du privé (testé), chiffrement AES-256-GCM,
+`manageToken` haché + comparaison à temps constant (déjà corrigé), pas d'IP en clair, secrets validés
+au démarrage sans fallback (déjà corrigé), CSP/HSTS, rate-limit partout, RGPD (base légale =
+consentement, droit de suppression via le lien de gestion, hébergement UE — vérifier la région du
+projet Supabase), message d'orientation d'urgence dans la confirmation et les CGU.
+
+**Nouveau point Supabase :** `SUPABASE_SERVICE_ROLE_KEY` (si utilisée, par ex. pour
+`auth.admin.inviteUserByEmail`) ne doit **jamais** être exposée côté client — uniquement dans les
+Server Actions/route handlers, jamais dans une variable `NEXT_PUBLIC_*`.
 
 ---
 
 ## 12. Tests
 
-- **Unitaires (Vitest)** : validation Zod, matrice de visibilité, calcul des périodes avec fuseau,
-  RBAC, chiffrement, hash de token, agrégation de push (§5.2).
-- **Composants (Jest + React Native Testing Library)** : cartes de sujet, formulaire de dépôt, écran
-  « Mes sujets ».
-- **E2E (Maestro, iOS + Android)** :
-  1. dépôt public → apparition immédiate dans le mur ; dépôt avec URL → mis en attente ;
-  2. dépôt privé → absent du mur et de l'API ;
-  3. « Je prie » → compteur +1, relance de l'app → toujours +1, pas de double comptage ;
-  4. signalement d'exaucement → confirmation admin → visible 5 j → masqué à J+6 → retrouvable dans
-     « Exaucés » (horloge simulée) ;
-  5. invitation admin par deep link → connexion → accès ; modérateur bloqué sur `administrateurs` ;
-  6. audit d'accessibilité (VoiceOver/TalkBack) sur les parcours critiques.
-- **Distribution de test** : builds internes EAS → TestFlight (iOS) et Google Play Internal Testing,
-  avec un petit groupe de l'église avant la mise en production.
-- **Objectif de couverture** : ≥ 85 % sur `server/services`.
+Vitest (déjà en place pour les services/crypto/env, à étendre), Playwright pour l'E2E web (remplace
+Maestro) : dépôt public/privé, non-fuite du privé, « je prie » idempotent, cycle exaucement complet,
+invitation admin → connexion → RBAC, accessibilité (axe-core), responsive 375 px.
 
 ---
 
-## 13. Déploiement, exploitation et soumission aux stores
+## 13. Déploiement — Vercel + Supabase, budget zéro
 
-- **Backend** : Vercel (route handlers uniquement) + Neon (Postgres, UE). Cron Vercel : agrégat
-  quotidien 00 h 10, digest hebdomadaire, purge des hash d'IP à 90 j, agrégation push différée (§5.2).
-- **Mobile** : `eas build` (iOS + Android) → `eas submit` → App Store Connect / Google Play Console ;
-  `eas update` pour les correctifs JS sans nouvelle revue store.
-- **Comptes développeur requis dès la phase 0** : Apple Developer Program (99 $/an) et Google Play
-  Console (25 $ une fois) — **à créer tôt**, les délais de vérification Apple peuvent prendre plusieurs
-  jours et bloquent la première soumission s'ils ne sont pas anticipés.
-- **Exigences store à préparer en phase 6** : politique de confidentialité (une page web minimale,
-  hébergée séparément — c'est une obligation légale des deux stores, pas « le site » abandonné en
-  §16), coordonnées de support visibles dans l'app, captures d'écran, description, catégorie « Style de
-  vie » ou « Réseautage social », classification d'âge, justification du contenu généré par les
-  utilisateurs (§5.4) pour la revue Apple.
-- **Notifications push** : projet Expo/EAS configuré avec les certificats APNs et la clé FCM.
-- **Runbook** : restauration de sauvegarde, révocation d'un admin compromis (et de ses appareils),
-  retrait d'urgence d'un sujet, procédure de rejet de revue store et resoumission.
+### Variables d'environnement
+
+```
+DATABASE_URL=            # Supabase → connexion "Transaction pooler" (port 6543), PAS la connexion directe
+DIRECT_URL=               # Supabase → connexion directe (port 5432), utilisée uniquement par `prisma migrate`
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=   # jamais NEXT_PUBLIC_, jamais côté client
+APP_SECRET=               # 32+ caractères, chiffrement AES-256 (déjà en place)
+PEPPER=                   # 16+ caractères, hachage IP + manageToken (déjà en place)
+RESEND_API_KEY=
+TURNSTILE_SECRET_KEY= / NEXT_PUBLIC_TURNSTILE_SITE_KEY=
+UPSTASH_REDIS_REST_URL= / UPSTASH_REDIS_REST_TOKEN=
+CRON_SECRET=               # protège /api/cron/daily-stats
+```
+
+> ⚠️ **Piège le plus fréquent de cette combinaison Prisma + Vercel + Supabase :** les fonctions
+> serverless de Vercel ouvrent potentiellement des dizaines de connexions Postgres simultanées ; sans
+> passer par le **pooler** de Supabase (Supavisor, port 6543, `DATABASE_URL`), les connexions
+> s'épuisent rapidement et l'app tombe en erreur sous charge modeste. Le schéma Prisma doit déclarer
+> `directUrl = env("DIRECT_URL")` en plus de `url = env("DATABASE_URL")` dans le bloc `datasource`, et
+> `DATABASE_URL` doit se terminer par `?pgbouncer=true` (ou l'équivalent Supavisor documenté au moment
+> de la mise en place). À vérifier explicitement pendant la Phase 0 de cette version — c'est le genre
+> d'erreur qui ne se voit qu'en charge réelle, pas en développement local.
+
+- **Vercel** : palier Hobby (gratuit), domaine `*.vercel.app` pour démarrer, Vercel Cron pour
+  l'agrégat quotidien (gratuit sur Hobby avec une limite de fréquence — un run par jour suffit
+  largement ici).
+- **Supabase** : palier gratuit. **Le projet se met en pause après 7 jours d'inactivité** (déjà
+  signalé le 15/09) — sans conséquence en développement, à surveiller une fois en production réelle
+  (upgrade Pro ~25 $/mois si ça devient gênant, pas avant).
+- **Resend** : palier gratuit (100 e-mails/jour, 3 000/mois) — largement suffisant pour les alertes
+  admin et les invitations à l'échelle d'un département d'église.
 
 ---
 
@@ -615,19 +358,19 @@ Toutes les entrées passent par `packages/shared` (Zod). Toutes les mutations ad
 
 | Phase | Contenu | Estimation |
 |---|---|---|
-| **0 — Socle** | Monorepo pnpm, `apps/api` (routes uniquement), `apps/mobile` (Expo Router, NativeWind), Prisma + base, comptes développeur Apple/Google, CI, Sentry | 2 j |
-| **1 — Cœur du produit** | Accueil, Déposer, Confirmation, Communauté, « Je prie », « Mes sujets » — via `api/v1` | 4 j |
-| **2 — Exaucés & archives** | Signalement, confirmation admin, masquage J+5, onglet Exaucés, témoignages | 1 j |
-| **3 — Administration** | Auth par deep link + jetons mobiles, RBAC, surveillance a posteriori + retrait express (push), invitations, audit | 3 j |
-| **4 — Statistiques** | `DailyStat`, cron, écran statistiques mobile (graphiques simplifiés), export CSV par e-mail | 1,5 j |
-| **5 — Durcissement** | Turnstile, rate-limit, chiffrement, RGPD, e-mails, notifications push agrégées | 1,5 j |
-| **6 — Finition & préparation store** | Accessibilité, mode sombre, icône/splash, page de confidentialité minimale, fiches App Store/Play Store, tests Maestro complets, contenu | 2,5 j |
-| **7 — Bêta puis lancement** | TestFlight + Google Play Internal Testing avec un groupe pilote, corrections, soumission, seed du super-admin, formation de l'équipe | 2 j |
+| **0 — Migration du socle** | Aplatir le monorepo en un seul projet Next.js 14, adapter `schema.prisma` (§4), reconnecter Prisma à Supabase (pooler + direct URL), retirer `apps/mobile` et les packages devenus inutiles, Tailwind configuré avec les tokens (§9) | 1 j *(work déjà fait en Phase 0 mobile largement réutilisé)* |
+| **1 — Authentification admin** | Intégration Supabase Auth (`@supabase/ssr`), `middleware.ts`, page de connexion, invitation via `inviteUserByEmail`, RBAC branché sur la table `Admin` | 1,5 j |
+| **2 — Cœur du produit** | Accueil, Déposer, Confirmation avec lien de gestion, Communauté, « Je prie » | 3 j |
+| **3 — Exaucés & archives** | Signalement via `/mon-sujet/[token]`, confirmation admin, masquage J+5, page `/exauces` | 1 j |
+| **4 — Administration** | Surveillance a posteriori (alertes Resend, retrait express), tableau de bord, journal d'audit | 2 j |
+| **5 — Statistiques** | `DailyStat`, cron Vercel, tableau de bord hebdo/mensuel/annuel, export CSV | 1,5 j |
+| **6 — Durcissement** | Turnstile, rate-limit Upstash, vérification RGPD, revue de sécurité finale | 1 j |
+| **7 — Finition & lancement** | Accessibilité, mode sombre, SEO/OpenGraph, tests Playwright complets, contenu réel, déploiement Vercel production | 2 j |
 
-**Total ≈ 17,5 jours-homme.** MVP démontrable en interne (TestFlight/Internal Testing) dès la fin de
-la phase 3 (jour ~10). Le délai de revue Apple (1–3 jours ouvrés en général, parfois plus en cas
-d'aller-retour sur le contenu généré par les utilisateurs) s'ajoute en phase 7 et n'est pas
-compressible par l'équipe.
+**Total ≈ 13 jours-homme** — comparable à l'estimation web v1.1 initiale, malgré le détour par le
+mobile, parce que l'essentiel du backend (schéma, chiffrement, services, sécurité) reste acquis.
+Aucun délai de revue externe cette fois (pas d'App Store) : le calendrier dépend uniquement du rythme
+de travail.
 
 ---
 
@@ -635,72 +378,48 @@ compressible par l'équipe.
 
 | Risque | Impact | Parade |
 |---|---|---|
-| Rejet App Store (contenu généré par les utilisateurs, règle 1.2) | Blocage du lancement iOS | Signalement, retrait express, contact support visibles dès la première soumission (§5.4, §13) — pas ajoutés après coup |
-| Portée limitée sans page web de secours | Un lien partagé hors app est inutilisable par qui ne l'a pas installée | Assumé pour cette phase (§1) ; §17 explique le chemin vers une page web de secours plus tard |
-| Contenu inapproprié en ligne immédiatement (publication immédiate) | Image de l'église | Turnstile + rate-limit, auto-retenue des contenus suspects, push admin instantané avec retrait en un clic, retrait auto au 3ᵉ signalement |
-| Aucun admin disponible la nuit / le week-end | Contenu gênant visible plusieurs heures | Push à tous les admins + retrait automatique au seuil de signalements sans intervention humaine |
-| Perte de la liste « Mes sujets » (réinstallation, changement de téléphone) | Le déposant ne retrouve plus son sujet depuis l'app | Récupération possible par un admin après vérification d'identité (comme en v1 web) |
-| Notifications trop fréquentes perçues comme intrusives | Désinstallation | Push agrégés (§5.2), jamais un push par prière individuelle |
-| Délai de revue store imprévisible | Décale la date de lancement | Comptes développeur créés dès la phase 0, soumission anticipée avec marge, bêta TestFlight/Internal Testing en parallèle |
+| Épuisement des connexions Postgres (Prisma + Vercel + pas de pooler) | Panne sous charge, difficile à diagnostiquer | Pooler Supabase configuré dès la Phase 0 (§13), pas laissé pour plus tard |
+| Pause du projet Supabase gratuit après 7 jours d'inactivité | Site indisponible sans prévenir en début de vie du projet | Surveiller à l'approche du lancement réel, upgrade Pro avant l'annonce publique |
+| Contenu inapproprié en ligne immédiatement (publication immédiate) | Image de l'église | Turnstile + rate-limit, auto-retenue des contenus suspects, alerte e-mail instantanée avec retrait en un clic |
+| Perte du lien de gestion par le déposant | Support | Rappel explicite + copie en un clic + `localStorage` de confort + récupération admin après vérification |
+| `SUPABASE_SERVICE_ROLE_KEY` exposée par erreur côté client | Compromission totale de la base | Revue explicite en Phase 6 : grep du code pour toute variable `NEXT_PUBLIC_` mal nommée |
 
 ---
 
 ## 16. Décisions
 
-### Validées le 12–14 septembre 2026
+### Validées le 16 septembre 2026
 
-| Sujet | Décision | Impact sur le plan |
+| Sujet | Décision | Impact |
 |---|---|---|
-| Accès à la communauté | Ouvert à tous | §8 |
-| Marquage « exaucé » | Administrateurs uniquement (signalement du déposant + confirmation admin) | §5.3 |
-| Connexion admin | Lien magique e-mail uniquement | §5.7 |
-| Modération | Publication immédiate + surveillance a posteriori | §5.4 |
-| **Produit de départ** | **Application mobile, sans site web pour l'instant** | Réécriture complète de ce document en v2.0 |
-| **Plateformes** | **iOS + Android ensemble, via Expo** | §2, §13 |
+| Plateforme | **Web** (abandon du mobile pour raison budgétaire) | Réécriture complète en v3.0 |
+| Framework | Next.js 14 (App Router) | §2, §3 |
+| Base de données | Supabase Postgres | déjà en place depuis le 15/09 |
+| Authentification | Supabase Auth (remplace Auth.js) | §5.5, §11 |
+| Styles | Tailwind CSS | §9 |
+| Déploiement | Vercel | §13 |
 
-**Conséquence assumée à valider explicitement avec le responsable du département :** sans site web,
-l'espace d'administration (modération, statistiques, invitations) vit **dans l'app mobile**, pas dans
-un panneau web séparé. C'est cohérent avec « mobile uniquement pour l'instant », mais ça veut dire que
-les admins modèrent et consultent les stats depuis leur téléphone — plus rapide au quotidien, mais des
-tableaux denses ou une modération en masse seraient plus confortables sur grand écran. Si ce confort
-s'avère nécessaire à l'usage, §17 explique que rien n'empêche d'ajouter un panneau web léger plus tard
-sans toucher au backend.
+**Décisions d'architecture prises de mon côté, à valider par toi :**
+1. **Prisma conservé** plutôt qu'un passage au client Supabase natif — pour ne pas jeter le travail de
+   la Phase 0 déjà testé. Dis-moi si tu voulais au contraire repartir sur le client Supabase natif
+   (par ex. pour t'appuyer sur le Row Level Security) — c'est un choix défendable aussi, mais qui
+   coûterait une réécriture du backend.
+2. **Monorepo aplati** en un seul projet Next.js — la séparation `apps/mobile` / `apps/api` n'a plus
+   de raison d'être sans client mobile.
 
 ### Questions ouvertes
 
-1. **Page de confidentialité minimale** (obligatoire pour les deux stores, indépendante du « site web »
-   abandonné) : je la génère et l'héberge sur un sous-domaine simple — un nom à me donner ?
-2. **Nom de famille** : conservé en base pour les admins, jamais affiché publiquement — confirmé ?
-3. **Fuseau horaire et langue** : Europe/Paris et français uniquement pour la v1 ?
-4. **Comptes développeur** : qui crée/possède le compte Apple Developer Program et le compte Google
-   Play Console — le département, ou un compte personnel à transférer ensuite ? À faire tôt (§13).
-5. **Nom exact de l'app, icône, identifiants de bundle** (`com.eglise.maboiteapriere` par exemple) ?
-6. **Premier super-administrateur** : quelle adresse e-mail pour le seed initial ?
-7. **Point d'entrée de l'espace admin** (§7.7) : tap long sur le logo, écran « Plus » dédié, ou autre
-   convention — j'ai une préférence pour un écran « Plus » explicite (plus découvrable, moins « caché »
-   qu'un geste secret) mais c'est un choix d'ergonomie ouvert.
+1. **Captures d'écran** : pas encore reçues dans cet échange — à transmettre ici, ou déjà données à
+   l'agent qui code ?
+2. **Nom de domaine** : `*.vercel.app` pour démarrer, ou domaine personnalisé déjà réservé ?
+3. **Premier super-administrateur** : quelle adresse e-mail pour l'amorçage ?
+4. **Nom de famille** : conservé en base, jamais affiché publiquement — confirmé ?
 
 ---
 
-## 17. Trajectoire vers un site web (plus tard, si besoin)
+## 17. Retour possible vers le mobile, plus tard
 
-Rien dans ce plan ne ferme la porte à un site web futur — c'est même la raison d'être de l'architecture
-API-first posée dès la phase 0.
-
-**Ce qui se réutilise intégralement le jour où un site web est décidé :**
-- Toute la base de données, les services métier, le RBAC, l'audit, le chiffrement, les crons de stats.
-- Tous les endpoints `api/v1` et leurs schémas Zod (`packages/shared`) — zéro nouvel endpoint à écrire.
-- Le vocabulaire produit (statuts, workflow de modération, catégories) — identique sur les deux fronts.
-- Les tokens de design (§9) comme valeurs, transposables en CSS/Tailwind pour le web.
-
-**Ce qu'il faudrait reconstruire, à ce moment-là seulement :**
-- L'interface web (Next.js pages, comme décrites dans la v1.1 de ce document, conservée en historique
-  git) et l'authentification par cookie de session en plus de l'auth par jeton déjà en place pour le
-  mobile.
-- Une page de secours pour les liens partagés (`communaute/[slug]`) consultable sans avoir l'app —
-  ce serait le gain le plus immédiat d'un site web, avant même un espace admin web.
-
-**Ordre recommandé si ce jour arrive :** (1) une page web de secours pour les sujets publics partagés
-(lecture seule, sans dépôt ni prière) — quelques jours ; (2) éventuellement un panneau admin web léger
-si la modération depuis le mobile devient inconfortable à l'usage ; (3) un site vitrine complet en
-dernier, seulement si le besoin d'acquisition/SEO se confirme.
+Le pivot n'est pas définitif — si le budget le permet un jour, l'architecture Server Actions +
+services + repositories se réexpose facilement en `api/v1` (comme fait pour la v2.0) sans toucher au
+cœur métier. Rien dans ce choix web n'est un cul-de-sac technique, juste une priorité budgétaire
+actuelle.

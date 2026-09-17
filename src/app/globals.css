@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-serif: 'Fraunces', Georgia, serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --fond: #FBF8F3;
+  --surface: #FFFFFF;
+  --encre: #1C2541;
+  --encre-douce: #55607A;
+  --primaire: #2F4A78;
+  --lumiere: #E8A33D;
+  --paix: #6FA287;
+  --bordure: #EAE3D8;
+}
+
+body {
+  background-color: var(--fond);
+  color: var(--encre);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Animations douces */
+::selection {
+  background-color: #EBF0F8;
+  color: #2F4A78;
+}

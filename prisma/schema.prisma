@@ -1,0 +1,178 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Visibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+}
+
+enum AdminStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+model PrayerRequest {
+  id                  String        @id @default(cuid())
+  publicSlug          String        @unique
+  manageToken         String        @unique // Hash SHA-256 avec PEPPER du jeton de gestion
+
+  firstName           String        @db.VarChar(60)
+  lastName            String        @db.VarChar(60) // Jamais exposé publiquement
+  displayAsAnonymous Boolean       @default(false)
+  content             String        @db.Text // Chiffré en AES-256-GCM si visibility = PRIVATE
+  contentIv           String?
+  category            String?       @db.VarChar(40)
+
+  visibility          Visibility
+  status              RequestStatus @default(PENDING)
+  moderatedById       String?
+  moderatedAt         DateTime?
+  moderationNote      String?       @db.Text
+
+  isAnswered          Boolean       @default(false)
+  answeredAt          DateTime?
+  answeredNote        String?       @db.Text
+  answeredBy          String?
+
+  prayerCount         Int           @default(0)
+  viewCount           Int           @default(0)
+
+  ipHash              String?       @db.VarChar(64)
+  userAgent           String?       @db.VarChar(255)
+  locale              String        @default("fr")
+
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  deletedAt           DateTime?
+
+  prayers             PrayerAction[]
+  reports             Report[]
+  answeredClaim       AnsweredClaim?
+
+  @@index([visibility, status, isAnswered, createdAt(sort: Desc)])
+  @@index([createdAt])
+  @@index([answeredAt])
+}
+
+model PrayerAction {
+  id        String        @id @default(cuid())
+  requestId String
+  request   PrayerRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  visitorId String        @db.VarChar(64) // UUID stocké dans un cookie httpOnly
+  ipHash    String?       @db.VarChar(64)
+  createdAt DateTime      @default(now())
+
+  @@unique([requestId, visitorId])
+  @@index([createdAt])
+}
+
+model Admin {
+  id          String      @id @default(cuid())
+  authUserId  String      @unique // Lie la ligne au compte Supabase Auth (auth.users.id)
+  email       String      @unique
+  firstName   String
+  lastName    String
+  role        AdminRole   @default(MODERATOR)
+  status      AdminStatus @default(INVITED)
+  invitedById String?
+  lastLoginAt DateTime?
+  createdAt   DateTime    @default(now())
+  deletedAt   DateTime?
+}
+
+model AdminInvitation {
+  id          String    @id @default(cuid())
+  email       String
+  role        AdminRole
+  tokenHash   String    @unique
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([email])
+}
+
+model AnsweredClaim {
+  id            String        @id @default(cuid())
+  requestId     String        @unique
+  request       PrayerRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  note          String?       @db.Text
+  confirmedById String?
+  confirmedAt   DateTime?
+  rejectedAt    DateTime?
+  createdAt     DateTime      @default(now())
+}
+
+model Report {
+  id        String        @id @default(cuid())
+  requestId String
+  request   PrayerRequest @relation(fields: [requestId], references: [id])
+  reason    String
+  visitorId String?
+  handledAt DateTime?
+  createdAt DateTime      @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  ipHash     String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
+model DailyStat {
+  day              DateTime @id @db.Date
+  requestsTotal    Int      @default(0)
+  requestsPublic   Int      @default(0)
+  requestsPrivate  Int      @default(0)
+  requestsAnswered Int      @default(0)
+  prayers          Int      @default(0)
+  uniquePrayers    Int      @default(0)
+  visits           Int      @default(0)
+}
+
+model UsedExpressToken {
+  tokenHash String   @id @db.VarChar(64)
+  requestId String
+  action    String   @db.VarChar(50)
+  usedAt    DateTime @default(now())
+}
+
