@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 
 export interface BibleVerse {
   id: string;
@@ -85,6 +85,16 @@ export function FloatingVerseCarousel() {
         aria-hidden="true"
         className="absolute -bottom-6 -right-8 w-52 h-52 rounded-full bg-glow-bleu/45 blur-3xl pointer-events-none animate-halo-bleu"
       />
+
+      {/* Badge flottant façon tooltip Apple en verre dépoli avec oscillation douce */}
+      <div
+        className={`absolute -top-3.5 left-6 z-20 inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-bold text-primaire dark:text-lumiere bg-surface/85 dark:bg-surface/75 backdrop-blur-md border border-bordure/90 shadow-xs pointer-events-none select-none ${
+          shouldReduceMotion ? '' : 'animate-float'
+        }`}
+      >
+        <Sparkles size={12} className="text-lumiere fill-current" />
+        <span>Parole vivante</span>
+      </div>
 
       {/* Boîtier principal du verset */}
       <section className="relative z-10 bg-surface/90 dark:bg-surface/80 backdrop-blur-md border border-bordure rounded-2xl p-6 sm:p-7 shadow-sm transition-colors duration-300 min-h-[175px] flex flex-col justify-between">

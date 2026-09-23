@@ -1,11 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Share2, Check, Copy } from 'lucide-react';
-import { getDailyVerse } from '../../lib/constants/daily-verses';
+import { Sparkles, Share2, Check } from 'lucide-react';
+import { getDailyVerse, type DailyVerseItem } from '../../lib/constants/daily-verses';
 
-export function DailyVerseBanner() {
-  const verse = getDailyVerse();
+interface DailyVerseBannerProps {
+  verse?: DailyVerseItem;
+}
+
+export function DailyVerseBanner({ verse: propVerse }: DailyVerseBannerProps = {}) {
+  const verse = propVerse || getDailyVerse();
   const [copied, setCopied] = useState(false);
 
   const handleShare = async () => {
@@ -36,7 +40,7 @@ export function DailyVerseBanner() {
   };
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-bordure bg-gradient-to-r from-fond via-surface to-fond p-4 sm:p-5 shadow-xs transition-colors duration-200">
+    <div className="relative overflow-hidden rounded-2xl border border-bordure/90 bg-surface/80 dark:bg-surface/70 backdrop-blur-md p-4 sm:p-5 shadow-sm transition-colors duration-200">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">

@@ -26,6 +26,8 @@ export function useLivePrayerCount(publicSlug: string, initialCount: number) {
 
       if (isRealtimeCandidate) {
         const supabase = createClient();
+        // Note: La publication Realtime Supabase doit inclure cette table :
+        // ALTER PUBLICATION supabase_realtime ADD TABLE "PrayerRequest";
         channel = supabase
           .channel(`prayer-count-${publicSlug}`)
           .on(
@@ -33,7 +35,7 @@ export function useLivePrayerCount(publicSlug: string, initialCount: number) {
             {
               event: 'UPDATE',
               schema: 'public',
-              table: 'prayer_requests',
+              table: 'PrayerRequest',
               filter: `publicSlug=eq.${publicSlug}`,
             },
             (payload: { new?: { prayerCount?: number } }) => {

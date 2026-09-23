@@ -127,6 +127,20 @@ body {
   animation: mbap-shimmer 2.2s infinite ease-in-out;
 }
 
+/* Oscillation verticale douce pour badges flottants façon tooltip Apple */
+@keyframes mbap-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.animate-float {
+  animation: mbap-float 4.2s ease-in-out infinite;
+}
+
 /* Accessibilité stricte : prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -138,8 +152,10 @@ body {
   }
   .animate-halo-or,
   .animate-halo-bleu,
-  .shimmer-effect {
+  .shimmer-effect,
+  .animate-float {
     animation: none !important;
     transform: none !important;
   }
 }
+

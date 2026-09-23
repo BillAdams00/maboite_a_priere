@@ -164,19 +164,31 @@ export const DAILY_VERSES: DailyVerseItem[] = [
 
 /**
  * Calcul déterministe du verset du jour à partir de la date calendaire
+ * ancrée sur le fuseau horaire de référence (Europe/Paris)
  * (Garantit le même verset pour tous les utilisateurs tout au long de la journée)
  */
 export function getDailyVerse(dateInput?: Date): DailyVerseItem {
   const now = dateInput || new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-  const day = now.getDate();
 
-  // Clé numérique déterministe basée sur le jour de l'année
-  const dayOfYear = Math.floor(
-    (now.getTime() - new Date(year, 0, 0).getTime()) / 1000 / 60 / 60 / 24
-  );
+  // Extraction déterministe des composantes calendaires dans le fuseau Europe/Paris
+  const formatter = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  const parts = formatter.formatToParts(now);
+  const day = parseInt(parts.find(p => p.type === 'day')?.value ?? '1', 10);
+  const month = parseInt(parts.find(p => p.type === 'month')?.value ?? '1', 10);
+  const year = parseInt(parts.find(p => p.type === 'year')?.value ?? '2026', 10);
+
+  // Jour de l'année en temps UTC pour s'affranchir des sauts d'heure d'été/hiver (DST)
+  const startOfYear = Date.UTC(year, 0, 1);
+  const currentDay = Date.UTC(year, month - 1, day);
+  const dayOfYear = Math.floor((currentDay - startOfYear) / (24 * 60 * 60 * 1000)) + 1;
 
   const index = Math.abs((year * 365 + dayOfYear) % DAILY_VERSES.length);
   return DAILY_VERSES[index];
 }
+

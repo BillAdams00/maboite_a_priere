@@ -39,7 +39,12 @@ export async function updateSession(request: NextRequest) {
   const isAdminRoute = request.nextUrl.pathname.startsWith('/admin');
 
   // Redirection si tentative d'accès à l'espace admin sans session
-  if (isAdminRoute && !isAuthRoute && !user) {
+  if (
+    isAdminRoute &&
+    !isAuthRoute &&
+    !user &&
+    !(process.env.NODE_ENV === 'development' && process.env.DEV_ADMIN_BYPASS === 'true')
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = '/admin/connexion';
     return NextResponse.redirect(url);

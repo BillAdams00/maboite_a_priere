@@ -24,6 +24,7 @@ export default function AdminConnexionPage() {
       email: email.trim().toLowerCase(),
       options: {
         emailRedirectTo: `${redirectOrigin}/auth/callback`,
+        shouldCreateUser: false,
       },
     });
 

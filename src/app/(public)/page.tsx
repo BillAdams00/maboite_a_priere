@@ -4,11 +4,15 @@ import { PrayerRepository } from '../../server/repositories/prayer.repository';
 import { PrayerCard } from '../../components/prayer/PrayerCard';
 import { FloatingVerseCarousel } from '../../components/home/FloatingVerseCarousel';
 import { DailyVerseBanner } from '../../components/home/DailyVerseBanner';
+import { getDailyVerse } from '../../lib/constants/daily-verses';
+import { HowItWorksSteps } from '../../components/home/HowItWorksSteps';
 import { FadeInWhenVisible } from '../../components/ui/FadeInWhenVisible';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
+  const dailyVerse = getDailyVerse();
+
   let latestPrayers: any[] = [];
   try {
     const res = await PrayerRepository.findPublicFeed({ limit: 3 });
@@ -58,55 +62,14 @@ export default async function HomePage() {
 
       {/* Verset du jour inspirant & déterministe avec bouton de partage */}
       <section className="max-w-2xl mx-auto">
-        <DailyVerseBanner />
+        <DailyVerseBanner verse={dailyVerse} />
       </section>
 
       {/* Versets flottants dynamiques avec halos lumineux défilants */}
       <FloatingVerseCarousel />
 
-      {/* Les 3 étapes */}
-      <FadeInWhenVisible>
-        <section className="space-y-6">
-          <div className="text-center">
-            <h2 className="font-serif text-2xl font-bold text-encre">Comment ça marche ?</h2>
-            <p className="text-xs sm:text-sm text-encre-douce mt-1">Simple, gratuit et sans friction.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-surface border border-bordure rounded-2xl p-5 shadow-xs space-y-2 transition-colors duration-200">
-              <div className="w-9 h-9 rounded-full bg-primaire/10 text-primaire flex items-center justify-center font-bold text-sm">
-                1
-              </div>
-              <h3 className="font-bold text-sm text-encre">Tu écris</h3>
-              <p className="text-xs text-encre-douce leading-relaxed">
-                Confie tes besoins, tes épreuves ou tes actions de grâce en moins de 45 secondes,
-                sans créer de compte.
-              </p>
-            </div>
-
-            <div className="bg-surface border border-bordure rounded-2xl p-5 shadow-xs space-y-2 transition-colors duration-200">
-              <div className="w-9 h-9 rounded-full bg-lumiere/15 text-lumiere flex items-center justify-center font-bold text-sm">
-                2
-              </div>
-              <h3 className="font-bold text-sm text-encre">Tu choisis</h3>
-              <p className="text-xs text-encre-douce leading-relaxed">
-                🔒 <strong>Privé</strong> (chiffré et visible uniquement par l'équipe pastorale) ou 🌍 <strong>Public</strong> pour être porté par l'intercession de tous.
-              </p>
-            </div>
-
-            <div className="bg-surface border border-bordure rounded-2xl p-5 shadow-xs space-y-2 transition-colors duration-200">
-              <div className="w-9 h-9 rounded-full bg-paix/15 text-paix flex items-center justify-center font-bold text-sm">
-                3
-              </div>
-              <h3 className="font-bold text-sm text-encre">La communauté prie</h3>
-              <p className="text-xs text-encre-douce leading-relaxed">
-                Des frères et sœurs intercèdent fidèlement pour toi. Tu conserves un lien privé pour suivre
-                le soutien reçu et partager ton exaucement.
-              </p>
-            </div>
-          </div>
-        </section>
-      </FadeInWhenVisible>
+      {/* Les 3 étapes avec storytelling au défilement (glissement alterné gauche/droite façon Apple) */}
+      <HowItWorksSteps />
 
       {/* Aperçu des prières récentes */}
       {latestPrayers.length > 0 && (
