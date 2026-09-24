@@ -13,25 +13,6 @@ export class AdminService {
    * 2. Ligne correspondante dans la table Admin avec status ACTIVE
    */
   static async requireAdmin(allowedRoles: AdminRole[] = ['MODERATOR', 'ADMIN', 'SUPER_ADMIN']) {
-    if (process.env.NODE_ENV === 'development' && process.env.DEV_ADMIN_BYPASS === 'true') {
-      return {
-        user: { id: 'dev-admin-id', email: 'admin@maboiteapriere.fr' } as any,
-        admin: {
-          id: 'dev-admin-id',
-          authUserId: 'dev-admin-id',
-          email: 'admin@maboiteapriere.fr',
-          firstName: 'Responsable',
-          lastName: 'Département',
-          role: 'SUPER_ADMIN' as AdminRole,
-          status: 'ACTIVE' as const,
-          invitedById: null,
-          lastLoginAt: new Date(),
-          createdAt: new Date(),
-          deletedAt: null,
-        },
-      };
-    }
-
     const supabase = createServerSupabase();
     const {
       data: { user },
