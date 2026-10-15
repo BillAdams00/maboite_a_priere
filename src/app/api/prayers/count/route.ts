@@ -14,22 +14,33 @@ export async function GET(request: Request) {
   try {
     const prayer = await prisma.prayerRequest.findUnique({
       where: { publicSlug: slug },
-      select: { prayerCount: true, status: true },
+      select: {
+        prayerCount: true,
+        status: true,
+        visibility: true,
+        deletedAt: true,
+      },
     });
 
-    if (!prayer || prayer.status !== 'APPROVED') {
-      return NextResponse.json({ prayerCount: 0 });
+    if (
+      !prayer ||
+      prayer.visibility !== 'PUBLIC' ||
+      prayer.status !== 'APPROVED' ||
+      prayer.deletedAt !== null
+    ) {
+      return NextResponse.json({ error: 'Sujet introuvable' }, { status: 404 });
     }
 
     return NextResponse.json(
       { prayerCount: prayer.prayerCount },
       {
+        status: 200,
         headers: {
           'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=20',
         },
       }
     );
   } catch (err) {
-    return NextResponse.json({ prayerCount: 0 }, { status: 200 });
+    return NextResponse.json({ error: 'Erreur interne' }, { status: 500 });
   }
 }

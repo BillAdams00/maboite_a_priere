@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '../../server/supabase/browser';
 
 export function useLivePrayerCount(publicSlug: string, initialCount: number) {
   const [count, setCount] = useState(initialCount);
@@ -13,44 +12,9 @@ export function useLivePrayerCount(publicSlug: string, initialCount: number) {
   useEffect(() => {
     if (!publicSlug) return;
 
-    let isSubscribed = true;
-    let channel: any = null;
+    let isMounted = true;
 
-    // 1. Tentative d'abonnement Supabase Realtime si les clés sont actives
-    try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const isRealtimeCandidate =
-        supabaseUrl &&
-        !supabaseUrl.includes('placeholder') &&
-        !supabaseUrl.includes('127.0.0.1:54321');
-
-      if (isRealtimeCandidate) {
-        const supabase = createClient();
-        // Note: La publication Realtime Supabase doit inclure cette table :
-        // ALTER PUBLICATION supabase_realtime ADD TABLE "PrayerRequest";
-        channel = supabase
-          .channel(`prayer-count-${publicSlug}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'PrayerRequest',
-              filter: `publicSlug=eq.${publicSlug}`,
-            },
-            (payload: { new?: { prayerCount?: number } }) => {
-              if (isSubscribed && payload.new && typeof payload.new.prayerCount === 'number') {
-                setCount(payload.new.prayerCount);
-              }
-            }
-          )
-          .subscribe();
-      }
-    } catch {
-      // Ignorer si indisponible
-    }
-
-    // 2. Repli automatique propre : polling léger toutes les 45s si l'onglet est actif
+    // Polling régulier de /api/prayers/count (toutes les 20s, onglet visible uniquement)
     const interval = setInterval(async () => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
         return;
@@ -59,24 +23,18 @@ export function useLivePrayerCount(publicSlug: string, initialCount: number) {
         const res = await fetch(`/api/prayers/count?slug=${encodeURIComponent(publicSlug)}`);
         if (res.ok) {
           const data = await res.json();
-          if (isSubscribed && typeof data.prayerCount === 'number') {
+          if (isMounted && typeof data.prayerCount === 'number') {
             setCount(prev => Math.max(prev, data.prayerCount));
           }
         }
       } catch {
         // Silencieux en cas de déconnexion momentanée
       }
-    }, 45000);
+    }, 20000);
 
     return () => {
-      isSubscribed = false;
+      isMounted = false;
       clearInterval(interval);
-      if (channel) {
-        try {
-          const supabase = createClient();
-          supabase.removeChannel(channel);
-        } catch {}
-      }
     };
   }, [publicSlug]);
 
