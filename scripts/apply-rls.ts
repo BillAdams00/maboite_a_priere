@@ -2,19 +2,6 @@ import { PrismaClient } from '@prisma/client';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const EXPECTED_TABLES = [
-  'PrayerRequest',
-  'PrayerAction',
-  'Admin',
-  'AdminInvitation',
-  'AnsweredClaim',
-  'Report',
-  'AuditLog',
-  'Setting',
-  'DailyStat',
-  'UsedExpressToken',
-];
-
 function getDirectUrl(): string {
   if (process.env.DIRECT_URL) {
     return process.env.DIRECT_URL;
@@ -96,51 +83,46 @@ async function main() {
 
     const sqlContent = fs.readFileSync(sqlPath, 'utf8');
     const statements = splitSqlStatements(sqlContent);
-    console.log(`📜 Exécution de prisma/sql/enable-rls.sql (${statements.length} instructions)...`);
+    console.log(`📜 Exécution de prisma/sql/enable-rls.sql (${statements.length} instruction(s))...`);
 
     for (const stmt of statements) {
       await prisma.$executeRawUnsafe(stmt);
     }
     console.log('✅ Instructions SQL exécutées avec succès.\n');
 
-    console.log('🔍 Vérification du statut Row Level Security (RLS) via pg_tables.rowsecurity :');
+    console.log('🔍 Vérification du statut Row Level Security (RLS) sur TOUTES les tables de public via pg_tables.rowsecurity :');
     const rows = await prisma.$queryRaw<Array<{ tablename: string; rowsecurity: boolean }>>`
       SELECT tablename, rowsecurity
       FROM pg_tables
       WHERE schemaname = 'public'
-        AND tablename = ANY(${EXPECTED_TABLES})
       ORDER BY tablename ASC;
     `;
 
-    const statusMap = new Map<string, boolean>();
-    for (const r of rows) {
-      statusMap.set(r.tablename, r.rowsecurity);
+    if (rows.length === 0) {
+      console.warn('\n⚠️ Aucune table trouvée dans le schéma public.');
+      process.exit(1);
     }
 
     let allCovered = true;
-    console.log('┌──────────────────────┬──────────────────────┬─────────────────────────┐');
-    console.log('│ Table                │ Statut RLS           │ Résultat                │');
-    console.log('├──────────────────────┼──────────────────────┼─────────────────────────┤');
+    console.log('┌──────────────────────────────────────┬──────────────────────┬─────────────────────────┐');
+    console.log('│ Table                                │ Statut RLS           │ Résultat                │');
+    console.log('├──────────────────────────────────────┼──────────────────────┼─────────────────────────┤');
 
-    for (const table of EXPECTED_TABLES) {
-      const isRls = statusMap.get(table);
-      if (isRls === true) {
-        console.log(`│ ${table.padEnd(20)} │ RLS = true           │ 🟢 Protégé              │`);
-      } else if (isRls === false) {
-        console.log(`│ ${table.padEnd(20)} │ RLS = false          │ 🔴 NON PROTÉGÉ          │`);
-        allCovered = false;
+    for (const r of rows) {
+      if (r.rowsecurity === true) {
+        console.log(`│ ${r.tablename.padEnd(36)} │ RLS = true           │ 🟢 Protégé              │`);
       } else {
-        console.log(`│ ${table.padEnd(20)} │ Non trouvée          │ 🟡 Table absente en DB  │`);
+        console.log(`│ ${r.tablename.padEnd(36)} │ RLS = false          │ 🔴 NON PROTÉGÉ          │`);
         allCovered = false;
       }
     }
-    console.log('└──────────────────────┴──────────────────────┴─────────────────────────┘');
+    console.log('└──────────────────────────────────────┴──────────────────────┴─────────────────────────┘');
 
     if (!allCovered) {
-      console.warn('\n⚠️ Attention : certaines tables n’ont pas RLS actif ou n’existent pas encore dans la base cible.');
-      process.exitCode = 1;
+      console.error('\n❌ Échec : au moins une table du schéma public n’a pas RLS activé !');
+      process.exit(1);
     } else {
-      console.log('\n🛡️ Succès : 100 % des tables applicatives (10/10) ont RLS = true et accès PostgREST bloqué.');
+      console.log(`\n🛡️ Succès : 100 % des tables du schéma public (${rows.length}/${rows.length}) ont RLS = true et accès PostgREST bloqué.`);
     }
   } finally {
     await prisma.$disconnect();

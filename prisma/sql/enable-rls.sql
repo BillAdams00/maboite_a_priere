@@ -1,58 +1,57 @@
 -- ==============================================================================
--- Activation de Row Level Security (RLS) et Révocation des Privilèges Publics
+-- Activation Dynamique de Row Level Security (RLS) et Révocation des Privilèges
 -- ==============================================================================
 -- Objectif de sécurité :
--- 1. Empêcher l'exposition involontaire des données via PostgREST (Supabase)
---    utilisant les clés publiques anon ou authenticated.
+-- 1. Verrouiller TOUTES les tables actuelles et futures du schéma public pour
+--    empêcher l'exposition involontaire via PostgREST (Supabase) avec la clé publique
+--    anon ou authenticated.
 -- 2. Aucune politique (POLICY) n'est créée : tout accès direct via PostgREST
---    est strictement bloqué par défaut.
--- 3. Prisma se connecte via l'utilisateur 'postgres' (direct ou via Transaction Pooler)
---    qui possède le privilège BYPASSRLS par défaut dans PostgreSQL.
--- 4. Ce script est strictement idempotent.
+--    est interdit par défaut.
+-- 3. Prisma se connecte via l'utilisateur 'postgres' qui possède l'attribut
+--    BYPASSRLS par défaut dans PostgreSQL.
+-- 4. Révocation sur les tables, séquences et privilèges par défaut.
+-- 5. Idempotent et compatible avec les bases locales sans les rôles Supabase.
 -- ==============================================================================
 
--- 1. Activer RLS sur toutes les tables du schéma
-ALTER TABLE IF EXISTS public."PrayerRequest" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public."PrayerAction" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public."Admin" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public."AdminInvitation" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public."AnsweredClaim" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public."Report" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public."AuditLog" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public."Setting" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public."DailyStat" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public."UsedExpressToken" ENABLE ROW LEVEL SECURITY;
-
--- 2. Révocation de tous les privilèges pour les rôles Supabase 'anon' et 'authenticated'
 DO $$
 DECLARE
   tbl text;
-  tables text[] := ARRAY[
-    'PrayerRequest',
-    'PrayerAction',
-    'Admin',
-    'AdminInvitation',
-    'AnsweredClaim',
-    'Report',
-    'AuditLog',
-    'Setting',
-    'DailyStat',
-    'UsedExpressToken'
-  ];
 BEGIN
-  FOREACH tbl IN ARRAY tables
+  -- 1. Activer RLS et révoquer les privilèges sur toutes les tables existantes du schéma public
+  FOR tbl IN
+    SELECT tablename FROM pg_tables WHERE schemaname = 'public'
   LOOP
-    IF EXISTS (
-      SELECT 1 FROM information_schema.tables 
-      WHERE table_schema = 'public' AND table_name = tbl
-    ) THEN
-      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-        EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon', tbl);
-      END IF;
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
 
-      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-        EXECUTE format('REVOKE ALL ON TABLE public.%I FROM authenticated', tbl);
-      END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+      EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon', tbl);
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+      EXECUTE format('REVOKE ALL ON TABLE public.%I FROM authenticated', tbl);
     END IF;
   END LOOP;
+
+  -- 2. Révoquer les privilèges sur toutes les séquences existantes du schéma public
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    EXECUTE 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    EXECUTE 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM authenticated';
+  END IF;
+
+  -- 3. Révoquer les privilèges par défaut pour que toute future table / séquence / fonction
+  --    créée dans le schéma public ne soit pas automatiquement accessible par anon ou authenticated
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon';
+    EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon';
+    EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM anon';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM authenticated';
+    EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM authenticated';
+    EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM authenticated';
+  END IF;
 END $$;
