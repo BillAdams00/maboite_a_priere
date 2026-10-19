@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Lock, Globe, Check, AlertCircle, Shield, HeartHandshake } from 'lucide-react';
 import { submitPrayerAction } from '../../../server/actions/prayer.actions';
 import { CATEGORIES } from '../../../lib/constants/design-tokens';
+import { TurnstileWidget } from '../../../components/ui/TurnstileWidget';
 
 export default function DeposerPage() {
   const router = useRouter();
@@ -15,6 +16,7 @@ export default function DeposerPage() {
   const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
   const [category, setCategory] = useState<string>('');
   const [displayAsAnonymous, setDisplayAsAnonymous] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,14 +40,17 @@ export default function DeposerPage() {
     setIsSubmitting(true);
 
     try {
-      const res = await submitPrayerAction({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        content: content.trim(),
-        visibility,
-        category: category || null,
-        displayAsAnonymous,
-      });
+      const res = await submitPrayerAction(
+        {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          content: content.trim(),
+          visibility,
+          category: category || null,
+          displayAsAnonymous,
+        },
+        turnstileToken
+      );
 
       if (!res.success || !res.data) {
         setError(res.error || 'Une erreur est survenue lors de l’envoi.');
@@ -250,6 +255,12 @@ export default function DeposerPage() {
             Pour la sécurité de tous, les liens internet (URLs) ne sont pas autorisés.
           </p>
         </div>
+
+        {/* Protection anti-robot Cloudflare Turnstile */}
+        <TurnstileWidget
+          onVerify={(tok) => setTurnstileToken(tok)}
+          onExpire={() => setTurnstileToken('')}
+        />
 
         {/* Bouton de soumission */}
         <button

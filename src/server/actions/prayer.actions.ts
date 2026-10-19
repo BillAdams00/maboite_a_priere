@@ -10,6 +10,9 @@ import {
 } from '../../lib/validation/prayer-request.schema';
 import { CreateReportSchema } from '../../lib/validation/report.schema';
 import { nanoid } from 'nanoid';
+import { verifyTurnstileToken } from '../lib/turnstile';
+import { checkRateLimit } from '../lib/rate-limit';
+import { hashIp } from '../lib/crypto';
 
 const VISITOR_COOKIE_NAME = 'mbap_visitor_id';
 
@@ -37,7 +40,7 @@ function getOrCreateVisitorId(): string {
 /**
  * Action : Déposer un sujet de prière
  */
-export async function submitPrayerAction(rawInput: unknown) {
+export async function submitPrayerAction(rawInput: unknown, turnstileToken?: string) {
   const validated = CreatePrayerRequestSchema.safeParse(rawInput);
   if (!validated.success) {
     return {
@@ -52,6 +55,25 @@ export async function submitPrayerAction(rawInput: unknown) {
     headerStore.get('x-real-ip') ||
     '127.0.0.1';
   const userAgent = headerStore.get('user-agent');
+  const hashedIp = hashIp(clientIp) || clientIp;
+
+  // 1. Rate-limit : 5 dépôts / heure / IP hachée
+  const rateLimitResult = await checkRateLimit('prayerSubmission', hashedIp);
+  if (!rateLimitResult.success) {
+    return {
+      success: false,
+      error: 'Limite de dépôts atteinte (5 sujets par heure maximum). Veuillez réessayer plus tard.',
+    };
+  }
+
+  // 2. Protection Cloudflare Turnstile anti-robot avant écriture
+  const turnstileResult = await verifyTurnstileToken(turnstileToken, clientIp);
+  if (!turnstileResult.success) {
+    return {
+      success: false,
+      error: turnstileResult.error || 'Échec de la validation anti-robot',
+    };
+  }
 
   try {
     const result = await PrayerService.submitPrayerRequest(validated.data, clientIp, userAgent);
@@ -76,7 +98,18 @@ export async function prayAction(publicSlug: string) {
   const headerStore = headers();
   const clientIp =
     headerStore.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    headerStore.get('x-real-ip');
+    headerStore.get('x-real-ip') ||
+    '127.0.0.1';
+  const hashedIp = hashIp(clientIp) || clientIp;
+
+  // Rate-limit : 30 prières / heure / IP
+  const rateLimitResult = await checkRateLimit('prayAction', hashedIp);
+  if (!rateLimitResult.success) {
+    return {
+      success: false,
+      error: 'Limite atteinte (30 prières par heure maximum). Merci de votre fidélité et à très bientôt.',
+    };
+  }
 
   try {
     const result = await PrayerService.prayForRequest(publicSlug, visitorId, clientIp);
@@ -108,7 +141,7 @@ export async function managePrayerAction(rawManageToken: string, rawInput: unkno
     const result = await PrayerService.manageRequest(rawManageToken, validated.data);
     return {
       success: true,
-      message: result.message,
+      data: result,
     };
   } catch (error: any) {
     return {
@@ -140,12 +173,12 @@ export async function reportPrayerAction(rawInput: unknown) {
     );
     return {
       success: true,
-      message: result.message,
+      data: result,
     };
   } catch (error: any) {
     return {
       success: false,
-      error: error.message || 'Erreur lors du signalement',
+      error: error.message || 'Erreur lors de l’envoi du signalement',
     };
   }
 }

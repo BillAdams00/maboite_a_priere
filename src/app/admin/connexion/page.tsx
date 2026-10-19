@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '../../../server/supabase/browser';
 import { Heart, Mail, CheckCircle2, AlertCircle, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { sendAdminMagicLinkAction } from '../../../server/actions/admin.actions';
+import { TurnstileWidget } from '../../../components/ui/TurnstileWidget';
 
 export default function AdminConnexionPage() {
   const [email, setEmail] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSent, setIsSent] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -16,22 +18,15 @@ export default function AdminConnexionPage() {
     setIsLoading(true);
     setErrorMessage(null);
 
-    const supabase = createClient();
-    const redirectOrigin =
-      typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      options: {
-        emailRedirectTo: `${redirectOrigin}/auth/callback`,
-        shouldCreateUser: false,
-      },
+    const res = await sendAdminMagicLinkAction({
+      email,
+      turnstileToken,
     });
 
     setIsLoading(false);
 
-    if (error) {
-      setErrorMessage(error.message || 'Impossible d’envoyer le lien magique.');
+    if (!res.success) {
+      setErrorMessage(res.error || 'Impossible d’envoyer le lien magique.');
     } else {
       setIsSent(true);
     }
@@ -103,6 +98,12 @@ export default function AdminConnexionPage() {
                 />
               </div>
             </div>
+
+            {/* Protection anti-robot Cloudflare Turnstile */}
+            <TurnstileWidget
+              onVerify={tok => setTurnstileToken(tok)}
+              onExpire={() => setTurnstileToken('')}
+            />
 
             <button
               type="submit"

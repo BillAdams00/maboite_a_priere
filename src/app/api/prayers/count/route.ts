@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/server/db';
+import { checkRateLimit } from '@/server/lib/rate-limit';
+import { hashIp } from '@/server/lib/crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +11,18 @@ export async function GET(request: Request) {
 
   if (!slug) {
     return NextResponse.json({ error: 'Slug manquant' }, { status: 400 });
+  }
+
+  // Rate limiting : 60 requêtes / min / IP
+  const clientIp =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    '127.0.0.1';
+  const hashedIp = hashIp(clientIp) || clientIp;
+
+  const rateCheck = await checkRateLimit('prayerCount', hashedIp);
+  if (!rateCheck.success) {
+    return NextResponse.json({ error: 'Trop de requêtes' }, { status: 429 });
   }
 
   try {

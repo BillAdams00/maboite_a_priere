@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { verifyExpressToken, hashToken } from '@/server/lib/crypto';
+import { verifyExpressToken, hashToken, hashIp } from '@/server/lib/crypto';
 import { prisma } from '@/server/db';
 import { AuditRepository } from '@/server/repositories/audit.repository';
+import { checkRateLimit } from '@/server/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,22 @@ export async function GET(
   request: Request,
   { params }: { params: { token: string } }
 ) {
+  const clientIp =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    '127.0.0.1';
+  const hashedIp = hashIp(clientIp) || clientIp;
+  const rateLimit = await checkRateLimit('expressModeration', hashedIp);
+  if (!rateLimit.success) {
+    return new NextResponse(
+      renderHtmlPage({
+        title: 'Trop de requêtes',
+        body: '<p style="color: #C85250;">Trop de requêtes de modération express. Veuillez patienter.</p>',
+      }),
+      { status: 429, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+    );
+  }
+
   const { token } = params;
   const verification = verifyExpressToken(token);
 
@@ -118,6 +135,22 @@ export async function POST(
   request: Request,
   { params }: { params: { token: string } }
 ) {
+  const clientIp =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    '127.0.0.1';
+  const hashedIp = hashIp(clientIp) || clientIp;
+  const rateLimit = await checkRateLimit('expressModeration', hashedIp);
+  if (!rateLimit.success) {
+    return new NextResponse(
+      renderHtmlPage({
+        title: 'Trop de requêtes',
+        body: '<p style="color: #C85250;">Trop de requêtes de modération express. Veuillez patienter.</p>',
+      }),
+      { status: 429, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+    );
+  }
+
   const { token } = params;
   const verification = verifyExpressToken(token);
 

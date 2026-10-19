@@ -58,7 +58,7 @@ export function MonSujetClient({ prayer, rawToken }: MonSujetClientProps) {
 
     if (res.success) {
       setShowAnswerModal(false);
-      setActionMessage(res.message || 'Votre témoignage a été transmis 🙌');
+      setActionMessage(res.data?.message || 'Votre témoignage a été transmis 🙌');
       router.refresh();
     } else {
       setErrorMessage(res.error || 'Une erreur est survenue.');
@@ -81,7 +81,7 @@ export function MonSujetClient({ prayer, rawToken }: MonSujetClientProps) {
     setIsSubmitting(false);
 
     if (res.success) {
-      setActionMessage(res.message || 'Votre sujet est désormais privé.');
+      setActionMessage(res.data?.message || 'Votre sujet est désormais privé.');
       router.refresh();
     } else {
       setErrorMessage(res.error || 'Une erreur est survenue.');
