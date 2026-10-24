@@ -40,6 +40,11 @@ export default function DeposerPage() {
     setIsSubmitting(true);
 
     try {
+      const hiddenInput = document.querySelector<HTMLInputElement>(
+        'input[name="cf-turnstile-response"]'
+      );
+      const effectiveToken = turnstileToken || hiddenInput?.value || '';
+
       const res = await submitPrayerAction(
         {
           firstName: firstName.trim(),
@@ -49,7 +54,7 @@ export default function DeposerPage() {
           category: category || null,
           displayAsAnonymous,
         },
-        turnstileToken
+        effectiveToken
       );
 
       if (!res.success || !res.data) {
@@ -165,10 +170,12 @@ export default function DeposerPage() {
         {/* Nom & Prénom */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-encre-douce uppercase tracking-wider">
+            <label htmlFor="firstName" className="block text-xs font-bold text-encre-douce uppercase tracking-wider">
               Prénom *
             </label>
             <input
+              id="firstName"
+              name="firstName"
               type="text"
               value={firstName}
               onChange={e => setFirstName(e.target.value)}
@@ -179,10 +186,12 @@ export default function DeposerPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-encre-douce uppercase tracking-wider">
+            <label htmlFor="lastName" className="block text-xs font-bold text-encre-douce uppercase tracking-wider">
               Nom de famille *
             </label>
             <input
+              id="lastName"
+              name="lastName"
               type="text"
               value={lastName}
               onChange={e => setLastName(e.target.value)}
@@ -200,8 +209,10 @@ export default function DeposerPage() {
 
         {/* Anonymat facultatif pour les sujets publics */}
         {visibility === 'PUBLIC' && (
-          <label className="flex items-center gap-3 p-3 rounded-xl border border-bordure bg-fond cursor-pointer hover:bg-surface transition-colors">
+          <label htmlFor="displayAsAnonymous" className="flex items-center gap-3 p-3 rounded-xl border border-bordure bg-fond cursor-pointer hover:bg-surface transition-colors">
             <input
+              id="displayAsAnonymous"
+              name="displayAsAnonymous"
               type="checkbox"
               checked={displayAsAnonymous}
               onChange={e => setDisplayAsAnonymous(e.target.checked)}
@@ -215,10 +226,13 @@ export default function DeposerPage() {
 
         {/* Catégorie */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-encre-douce uppercase tracking-wider">
+          <label htmlFor="category" className="block text-xs font-bold text-encre-douce uppercase tracking-wider">
             Catégorie (optionnelle)
           </label>
           <select
+            id="category"
+            name="category"
+            aria-label="Catégorie (optionnelle)"
             value={category}
             onChange={e => setCategory(e.target.value)}
             className="w-full px-3.5 py-2.5 rounded-xl border border-bordure bg-fond focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primaire/20 text-sm text-encre"
@@ -235,7 +249,7 @@ export default function DeposerPage() {
         {/* Sujet de prière */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="block text-xs font-bold text-encre-douce uppercase tracking-wider">
+            <label htmlFor="content" className="block text-xs font-bold text-encre-douce uppercase tracking-wider">
               Votre sujet de prière *
             </label>
             <span className="text-[11px] text-encre-subtile">
@@ -243,6 +257,8 @@ export default function DeposerPage() {
             </span>
           </div>
           <textarea
+            id="content"
+            name="content"
             value={content}
             onChange={e => setContent(e.target.value)}
             rows={5}

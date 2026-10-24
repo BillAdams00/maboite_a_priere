@@ -25,7 +25,7 @@ export function Footer() {
             <Link href="/mentions-legales" className="hover:text-primaire transition-colors">
               Mentions légales
             </Link>
-            <Link href="/admin/connexion" className="text-encre-subtile hover:text-encre transition-colors">
+            <Link href="/admin/connexion" className="text-encre-douce hover:text-encre transition-colors">
               Espace Admin
             </Link>
           </div>

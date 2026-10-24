@@ -18,9 +18,14 @@ export default function AdminConnexionPage() {
     setIsLoading(true);
     setErrorMessage(null);
 
+    const hiddenInput = document.querySelector<HTMLInputElement>(
+      'input[name="cf-turnstile-response"]'
+    );
+    const effectiveToken = turnstileToken || hiddenInput?.value || '';
+
     const res = await sendAdminMagicLinkAction({
       email,
-      turnstileToken,
+      turnstileToken: effectiveToken,
     });
 
     setIsLoading(false);

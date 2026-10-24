@@ -23,7 +23,7 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="space-y-12 sm:space-y-16 py-4">
+    <div className="space-y-12 sm:space-y-16 py-4 overflow-x-hidden">
       {/* Hero Header */}
       <section className="text-center max-w-2xl mx-auto space-y-4">
         <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-primaire/10 text-primaire text-xs font-semibold tracking-wide">

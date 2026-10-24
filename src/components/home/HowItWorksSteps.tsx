@@ -49,7 +49,7 @@ export function HowItWorksSteps() {
   const shouldReduceMotion = useReducedMotion();
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-6 overflow-hidden">
       <div className="text-center">
         <h2 className="font-serif text-2xl font-bold text-encre">Comment ça marche ?</h2>
         <p className="text-xs sm:text-sm text-encre-douce mt-1">Simple, gratuit et sans friction.</p>

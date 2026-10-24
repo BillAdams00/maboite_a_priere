@@ -72,19 +72,21 @@ export function FloatingVerseCarousel() {
 
   return (
     <div
-      className="relative max-w-2xl mx-auto my-6"
+      className="relative max-w-2xl mx-auto my-6 overflow-hidden"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
       {/* Halos lumineux d'ambiance lents en pur CSS (aucun re-render JS) */}
-      <div
-        aria-hidden="true"
-        className="absolute -top-6 -left-8 w-48 h-48 rounded-full bg-glow-or/40 blur-3xl pointer-events-none animate-halo-or"
-      />
-      <div
-        aria-hidden="true"
-        className="absolute -bottom-6 -right-8 w-52 h-52 rounded-full bg-glow-bleu/45 blur-3xl pointer-events-none animate-halo-bleu"
-      />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl">
+        <div
+          aria-hidden="true"
+          className="absolute -top-6 -left-8 w-48 h-48 rounded-full bg-glow-or/40 blur-3xl animate-halo-or"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute -bottom-6 -right-8 w-52 h-52 rounded-full bg-glow-bleu/45 blur-3xl animate-halo-bleu"
+        />
+      </div>
 
       {/* Badge flottant façon tooltip Apple en verre dépoli avec oscillation douce */}
       <div
@@ -99,7 +101,7 @@ export function FloatingVerseCarousel() {
       {/* Boîtier principal du verset */}
       <section className="relative z-10 bg-surface/90 dark:bg-surface/80 backdrop-blur-md border border-bordure rounded-2xl p-6 sm:p-7 shadow-sm transition-colors duration-300 min-h-[175px] flex flex-col justify-between">
         <div className="flex items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2 text-lumiere">
+          <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
             <BookOpen size={17} />
             <span className="text-xs font-bold uppercase tracking-wider">
               {verse.theme}

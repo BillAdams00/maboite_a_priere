@@ -44,7 +44,7 @@ export function DailyVerseBanner({ verse: propVerse }: DailyVerseBannerProps = {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-lumiere uppercase tracking-wider bg-lumiere/10 dark:bg-lumiere/15 px-2.5 py-0.5 rounded-full">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider bg-lumiere/10 dark:bg-lumiere/15 px-2.5 py-0.5 rounded-full">
               <Sparkles size={13} className="fill-current" />
               <span>Verset du jour</span>
             </span>

@@ -58,7 +58,7 @@ export function PrayerCard({ prayer }: PrayerCardProps) {
 
         {/* Badge Exaucé si applicable */}
         {prayer.isAnswered && (
-          <div className="mb-3 inline-flex items-center gap-1.5 bg-lumiere-subtle text-lumiere border border-lumiere/30 px-3 py-1 rounded-xl text-xs font-bold">
+          <div className="mb-3 inline-flex items-center gap-1.5 bg-lumiere-subtle text-amber-800 dark:text-amber-300 border border-lumiere/30 px-3 py-1 rounded-xl text-xs font-bold">
             <Sparkles size={14} className="fill-current" />
             <span>Prière exaucée 🙌</span>
           </div>

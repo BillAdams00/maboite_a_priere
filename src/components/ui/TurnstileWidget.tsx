@@ -32,10 +32,15 @@ export function TurnstileWidget({ onVerify, onExpire }: TurnstileWidgetProps) {
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const [isReady, setIsReady] = useState(false);
 
+  const onVerifyRef = useRef(onVerify);
+  onVerifyRef.current = onVerify;
+  const onExpireRef = useRef(onExpire);
+  onExpireRef.current = onExpire;
+
   useEffect(() => {
     // Si aucune clé n'est fournie (développement local sans Turnstile), on simule un jeton dev
     if (!siteKey) {
-      onVerify('dev-mock-turnstile-token');
+      onVerifyRef.current('dev-mock-turnstile-token');
       return;
     }
 
@@ -48,10 +53,10 @@ export function TurnstileWidget({ onVerify, onExpire }: TurnstileWidgetProps) {
           const id = window.turnstile.render(containerRef.current, {
             sitekey: siteKey,
             callback: (token: string) => {
-              onVerify(token);
+              onVerifyRef.current(token);
             },
             'expired-callback': () => {
-              if (onExpire) onExpire();
+              if (onExpireRef.current) onExpireRef.current();
             },
             theme: 'auto',
           });
@@ -63,19 +68,46 @@ export function TurnstileWidget({ onVerify, onExpire }: TurnstileWidgetProps) {
       }
     };
 
+    // Callback officiel Cloudflare Turnstile
+    (window as any).onTurnstileLoaded = () => {
+      renderWidget();
+    };
+
+    // Polling de sécurité si window.turnstile devient disponible et vérification du champ caché
+    const intervalId = setInterval(() => {
+      if (window.turnstile && containerRef.current && !widgetIdRef.current) {
+        renderWidget();
+      }
+      if (containerRef.current) {
+        const input = containerRef.current.querySelector<HTMLInputElement>(
+          'input[name="cf-turnstile-response"]'
+        );
+        if (input && input.value) {
+          onVerifyRef.current(input.value);
+        }
+      }
+      if (widgetIdRef.current) {
+        // Continue monitoring until token is retrieved, then slower
+      }
+    }, 150);
+
     if (!script) {
       script = document.createElement('script');
       script.id = scriptId;
-      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      script.src =
+        'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoaded';
       script.async = true;
       script.defer = true;
-      script.onload = () => renderWidget();
+      script.onload = () => {
+        if (window.turnstile) renderWidget();
+      };
       document.head.appendChild(script);
     } else if (window.turnstile) {
       renderWidget();
     }
 
     return () => {
+      clearInterval(intervalId);
       if (widgetIdRef.current && window.turnstile) {
         try {
           window.turnstile.remove(widgetIdRef.current);
@@ -83,7 +115,7 @@ export function TurnstileWidget({ onVerify, onExpire }: TurnstileWidgetProps) {
         } catch {}
       }
     };
-  }, [siteKey, onVerify, onExpire]);
+  }, [siteKey]);
 
   if (!siteKey) {
     return (

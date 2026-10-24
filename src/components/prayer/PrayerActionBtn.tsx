@@ -113,7 +113,6 @@ export function PrayerActionBtn({ publicSlug, initialCount }: PrayerActionBtnPro
             ? 'bg-paix/15 text-paix border border-paix/30 cursor-default'
             : 'bg-primaire/10 text-primaire hover:bg-primaire hover:text-white border border-primaire/20'
         }`}
-        aria-label="Prier pour ce sujet"
       >
         {hasPrayed ? (
           <motion.span
