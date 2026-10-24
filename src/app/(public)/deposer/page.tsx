@@ -6,6 +6,7 @@ import { Lock, Globe, Check, AlertCircle, Shield, HeartHandshake } from 'lucide-
 import { submitPrayerAction } from '../../../server/actions/prayer.actions';
 import { CATEGORIES } from '../../../lib/constants/design-tokens';
 import { TurnstileWidget } from '../../../components/ui/TurnstileWidget';
+import { withTimeout } from '../../../lib/utils/async';
 
 export default function DeposerPage() {
   const router = useRouter();
@@ -45,21 +46,24 @@ export default function DeposerPage() {
       );
       const effectiveToken = turnstileToken || hiddenInput?.value || '';
 
-      const res = await submitPrayerAction(
-        {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          content: content.trim(),
-          visibility,
-          category: category || null,
-          displayAsAnonymous,
-        },
-        effectiveToken
+      const res = await withTimeout(
+        submitPrayerAction(
+          {
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            content: content.trim(),
+            visibility,
+            category: category || null,
+            displayAsAnonymous,
+          },
+          effectiveToken
+        ),
+        15000,
+        'L’envoi de votre prière met plus de 15 secondes à aboutir. Veuillez vérifier votre connexion et réessayer.'
       );
 
       if (!res.success || !res.data) {
         setError(res.error || 'Une erreur est survenue lors de l’envoi.');
-        setIsSubmitting(false);
         return;
       }
 
@@ -89,7 +93,10 @@ export default function DeposerPage() {
       // Redirection propre sans jeton sensible dans la barre d'adresse
       router.push('/deposer/merci');
     } catch (err: any) {
-      setError(err.message || 'Une erreur réseau est survenue.');
+      setError(
+        err?.message || 'Une erreur réseau est survenue. Veuillez vérifier votre connexion et réessayer.'
+      );
+    } finally {
       setIsSubmitting(false);
     }
   };

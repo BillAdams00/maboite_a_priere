@@ -5,6 +5,7 @@ import { Heart, Mail, CheckCircle2, AlertCircle, ArrowLeft } from 'lucide-react'
 import Link from 'next/link';
 import { sendAdminMagicLinkAction } from '../../../server/actions/admin.actions';
 import { TurnstileWidget } from '../../../components/ui/TurnstileWidget';
+import { withTimeout } from '../../../lib/utils/async';
 
 export default function AdminConnexionPage() {
   const [email, setEmail] = useState('');
@@ -18,22 +19,33 @@ export default function AdminConnexionPage() {
     setIsLoading(true);
     setErrorMessage(null);
 
-    const hiddenInput = document.querySelector<HTMLInputElement>(
-      'input[name="cf-turnstile-response"]'
-    );
-    const effectiveToken = turnstileToken || hiddenInput?.value || '';
+    try {
+      const hiddenInput = document.querySelector<HTMLInputElement>(
+        'input[name="cf-turnstile-response"]'
+      );
+      const effectiveToken = turnstileToken || hiddenInput?.value || '';
 
-    const res = await sendAdminMagicLinkAction({
-      email,
-      turnstileToken: effectiveToken,
-    });
+      const res = await withTimeout(
+        sendAdminMagicLinkAction({
+          email,
+          turnstileToken: effectiveToken,
+        }),
+        15000,
+        'La demande met plus de 15 secondes à répondre. Veuillez vérifier votre connexion et réessayer.'
+      );
 
-    setIsLoading(false);
-
-    if (!res.success) {
-      setErrorMessage(res.error || 'Impossible d’envoyer le lien magique.');
-    } else {
-      setIsSent(true);
+      if (!res.success) {
+        setErrorMessage(res.error || 'Impossible d’envoyer le lien magique.');
+      } else {
+        setIsSent(true);
+      }
+    } catch (err: any) {
+      console.error('Erreur connexion admin :', err);
+      setErrorMessage(
+        err?.message || 'Une erreur inattendue est survenue lors de l’envoi. Veuillez réessayer.'
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 

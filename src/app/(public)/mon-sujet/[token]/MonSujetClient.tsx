@@ -18,6 +18,7 @@ import { managePrayerAction } from '../../../../server/actions/prayer.actions';
 import type { MyPrayerRequestDetail } from '../../../../lib/types/index';
 import { PrayerFidelityBadge } from '../../../../components/prayer/PrayerFidelityBadge';
 import Link from 'next/link';
+import { withTimeout } from '../../../../lib/utils/async';
 
 interface MonSujetClientProps {
   prayer: MyPrayerRequestDetail;
@@ -49,19 +50,29 @@ export function MonSujetClient({ prayer, rawToken }: MonSujetClientProps) {
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const res = await managePrayerAction(rawToken, {
-      action: 'claimAnswered',
-      note: testimonyNote || null,
-    });
+    try {
+      const res = await withTimeout(
+        managePrayerAction(rawToken, {
+          action: 'claimAnswered',
+          note: testimonyNote || null,
+        }),
+        15000,
+        'L’envoi de votre témoignage met plus de 15 secondes à aboutir. Veuillez vérifier votre connexion et réessayer.'
+      );
 
-    setIsSubmitting(false);
-
-    if (res.success) {
-      setShowAnswerModal(false);
-      setActionMessage(res.data?.message || 'Votre témoignage a été transmis 🙌');
-      router.refresh();
-    } else {
-      setErrorMessage(res.error || 'Une erreur est survenue.');
+      if (res.success) {
+        setShowAnswerModal(false);
+        setActionMessage(res.data?.message || 'Votre témoignage a été transmis 🙌');
+        router.refresh();
+      } else {
+        setErrorMessage(res.error || 'Une erreur est survenue.');
+      }
+    } catch (err: any) {
+      setErrorMessage(
+        err?.message || 'Une erreur réseau est survenue. Veuillez vérifier votre connexion et réessayer.'
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -77,14 +88,25 @@ export function MonSujetClient({ prayer, rawToken }: MonSujetClientProps) {
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const res = await managePrayerAction(rawToken, { action: 'private' });
-    setIsSubmitting(false);
+    try {
+      const res = await withTimeout(
+        managePrayerAction(rawToken, { action: 'private' }),
+        15000,
+        'La modification met plus de 15 secondes à aboutir. Veuillez vérifier votre connexion et réessayer.'
+      );
 
-    if (res.success) {
-      setActionMessage(res.data?.message || 'Votre sujet est désormais privé.');
-      router.refresh();
-    } else {
-      setErrorMessage(res.error || 'Une erreur est survenue.');
+      if (res.success) {
+        setActionMessage(res.data?.message || 'Votre sujet est désormais privé.');
+        router.refresh();
+      } else {
+        setErrorMessage(res.error || 'Une erreur est survenue.');
+      }
+    } catch (err: any) {
+      setErrorMessage(
+        err?.message || 'Une erreur réseau est survenue. Veuillez vérifier votre connexion et réessayer.'
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -100,14 +122,25 @@ export function MonSujetClient({ prayer, rawToken }: MonSujetClientProps) {
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const res = await managePrayerAction(rawToken, { action: 'delete' });
-    setIsSubmitting(false);
+    try {
+      const res = await withTimeout(
+        managePrayerAction(rawToken, { action: 'delete' }),
+        15000,
+        'La suppression met plus de 15 secondes à aboutir. Veuillez vérifier votre connexion et réessayer.'
+      );
 
-    if (res.success) {
-      alert('Votre sujet de prière a été supprimé.');
-      router.push('/communaute');
-    } else {
-      setErrorMessage(res.error || 'Une erreur est survenue.');
+      if (res.success) {
+        alert('Votre sujet de prière a été supprimé.');
+        router.push('/communaute');
+      } else {
+        setErrorMessage(res.error || 'Une erreur est survenue.');
+      }
+    } catch (err: any) {
+      setErrorMessage(
+        err?.message || 'Une erreur réseau est survenue. Veuillez vérifier votre connexion et réessayer.'
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

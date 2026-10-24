@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserPlus, X, Mail, CheckCircle2, AlertCircle } from 'lucide-react';
 import { inviteAdminAction } from '../../../server/actions/admin.actions';
+import { withTimeout } from '../../../lib/utils/async';
 
 export function AdminInviteModal() {
   const router = useRouter();
@@ -23,27 +24,35 @@ export function AdminInviteModal() {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const res = await inviteAdminAction({
-      email: email.trim().toLowerCase(),
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      role,
-    });
+    try {
+      const res = await withTimeout(
+        inviteAdminAction({
+          email: email.trim().toLowerCase(),
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          role,
+        }),
+        15000,
+        'L’envoi de l’invitation met plus de 15 secondes à aboutir. Veuillez réessayer.'
+      );
 
-    setIsLoading(false);
-
-    if (res.success) {
-      setSuccessMessage(`Invitation envoyée avec succès à ${email} via Supabase Auth !`);
-      setTimeout(() => {
-        setIsOpen(false);
-        setSuccessMessage(null);
-        setEmail('');
-        setFirstName('');
-        setLastName('');
-        router.refresh();
-      }, 2500);
-    } else {
-      setErrorMessage(res.error || 'Erreur lors de l’invitation.');
+      if (res.success) {
+        setSuccessMessage(`Invitation envoyée avec succès à ${email} via Supabase Auth !`);
+        setTimeout(() => {
+          setIsOpen(false);
+          setSuccessMessage(null);
+          setEmail('');
+          setFirstName('');
+          setLastName('');
+          router.refresh();
+        }, 2500);
+      } else {
+        setErrorMessage(res.error || 'Erreur lors de l’invitation.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Une erreur réseau est survenue. Veuillez réessayer.');
+    } finally {
+      setIsLoading(false);
     }
   };
 

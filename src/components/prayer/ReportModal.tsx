@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Flag, X, AlertTriangle } from 'lucide-react';
 import { reportPrayerAction } from '../../server/actions/prayer.actions';
+import { withTimeout } from '../../lib/utils/async';
 
 interface ReportModalProps {
   requestId: string;
@@ -25,18 +26,27 @@ export function ReportModal({ requestId }: ReportModalProps) {
     setIsSubmitting(true);
     setError(null);
 
-    const res = await reportPrayerAction({ requestId, reason });
-    setIsSubmitting(false);
+    try {
+      const res = await withTimeout(
+        reportPrayerAction({ requestId, reason }),
+        15000,
+        'L’envoi du signalement met plus de 15 secondes à aboutir. Veuillez réessayer.'
+      );
 
-    if (res.success) {
-      setSubmitted(true);
-      setTimeout(() => {
-        setIsOpen(false);
-        setSubmitted(false);
-        setReason('');
-      }, 2000);
-    } else {
-      setError(res.error || 'Erreur lors du signalement.');
+      if (res.success) {
+        setSubmitted(true);
+        setTimeout(() => {
+          setIsOpen(false);
+          setSubmitted(false);
+          setReason('');
+        }, 2000);
+      } else {
+        setError(res.error || 'Erreur lors du signalement.');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Une erreur réseau est survenue. Veuillez réessayer.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

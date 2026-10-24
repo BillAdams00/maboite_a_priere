@@ -5,6 +5,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { prayAction } from '../../server/actions/prayer.actions';
 import { useLivePrayerCount } from './useLivePrayerCount';
 import { Heart, Check } from 'lucide-react';
+import { withTimeout } from '../../lib/utils/async';
 
 interface PrayerActionBtnProps {
   publicSlug: string;
@@ -61,7 +62,11 @@ export function PrayerActionBtn({ publicSlug, initialCount }: PrayerActionBtnPro
     setHasPrayed(true);
 
     try {
-      const res = await prayAction(publicSlug);
+      const res = await withTimeout(
+        prayAction(publicSlug),
+        15000,
+        'La prière met plus de 15 secondes à être enregistrée.'
+      );
       if (res.success && res.data) {
         setCount(res.data.prayerCount);
         setHasPrayed(true);
@@ -69,7 +74,7 @@ export function PrayerActionBtn({ publicSlug, initialCount }: PrayerActionBtnPro
         console.warn('Erreur prière :', res.error);
       }
     } catch (err) {
-      console.error('Erreur :', err);
+      console.error('Erreur prayAction :', err);
     } finally {
       setIsLoading(false);
     }

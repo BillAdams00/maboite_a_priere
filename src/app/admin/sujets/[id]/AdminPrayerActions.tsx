@@ -14,6 +14,7 @@ import {
   moderatePrayerAction,
   resolveAnsweredClaimAction,
 } from '../../../../server/actions/admin.actions';
+import { withTimeout } from '../../../../lib/utils/async';
 
 interface AdminPrayerActionsProps {
   requestId: string;
@@ -36,14 +37,23 @@ export function AdminPrayerActions({
     setIsSubmitting(true);
     setFeedback(null);
 
-    const res = await moderatePrayerAction(requestId, decision, note || null);
-    setIsSubmitting(false);
+    try {
+      const res = await withTimeout(
+        moderatePrayerAction(requestId, decision, note || null),
+        15000,
+        'La modération met plus de 15 secondes à aboutir. Veuillez réessayer.'
+      );
 
-    if (res.success) {
-      setFeedback(`Action ${decision} effectuée avec succès.`);
-      router.refresh();
-    } else {
-      alert(res.error || 'Erreur lors de la modération');
+      if (res.success) {
+        setFeedback(`Action ${decision} effectuée avec succès.`);
+        router.refresh();
+      } else {
+        alert(res.error || 'Erreur lors de la modération');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Une erreur réseau est survenue. Veuillez réessayer.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -51,14 +61,23 @@ export function AdminPrayerActions({
     setIsSubmitting(true);
     setFeedback(null);
 
-    const res = await resolveAnsweredClaimAction(requestId, confirm, note || null);
-    setIsSubmitting(false);
+    try {
+      const res = await withTimeout(
+        resolveAnsweredClaimAction(requestId, confirm, note || null),
+        15000,
+        'Le traitement de l’exaucement met plus de 15 secondes à aboutir. Veuillez réessayer.'
+      );
 
-    if (res.success) {
-      setFeedback(confirm ? 'Exaucement validé 🙌' : 'Témoignage d’exaucement rejeté.');
-      router.refresh();
-    } else {
-      alert(res.error || 'Erreur lors du traitement de l’exaucement');
+      if (res.success) {
+        setFeedback(confirm ? 'Exaucement validé 🙌' : 'Témoignage d’exaucement rejeté.');
+        router.refresh();
+      } else {
+        alert(res.error || 'Erreur lors du traitement de l’exaucement');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Une erreur réseau est survenue. Veuillez réessayer.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
