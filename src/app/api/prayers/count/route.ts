@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/server/db';
 import { checkRateLimit } from '@/server/lib/rate-limit';
 import { hashIp } from '@/server/lib/crypto';
+import { GENERIC_TECHNICAL_ERROR } from '@/server/lib/errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +55,8 @@ export async function GET(request: Request) {
         },
       }
     );
-  } catch (err) {
-    return NextResponse.json({ error: 'Erreur interne' }, { status: 500 });
+  } catch (err: any) {
+    console.error('Erreur API prayers/count :', err);
+    return NextResponse.json({ error: GENERIC_TECHNICAL_ERROR }, { status: 500 });
   }
 }

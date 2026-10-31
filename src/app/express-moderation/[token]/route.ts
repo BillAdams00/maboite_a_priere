@@ -3,6 +3,7 @@ import { verifyExpressToken, hashToken, hashIp } from '@/server/lib/crypto';
 import { prisma } from '@/server/db';
 import { AuditRepository } from '@/server/repositories/audit.repository';
 import { checkRateLimit } from '@/server/lib/rate-limit';
+import { GENERIC_TECHNICAL_ERROR } from '@/server/lib/errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,7 +73,16 @@ export async function GET(
     prayer = await prisma.prayerRequest.findUnique({
       where: { id: verification.requestId },
     });
-  } catch (err) {}
+  } catch (err: any) {
+    console.error('Erreur express-moderation findUnique prayer :', err);
+    return new NextResponse(
+      renderHtmlPage({
+        title: 'Erreur lors du traitement',
+        body: `<p style="color: #C85250;">${GENERIC_TECHNICAL_ERROR}</p>`,
+      }),
+      { status: 500, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+    );
+  }
 
   if (!prayer || prayer.deletedAt !== null) {
     return new NextResponse(
@@ -213,7 +223,7 @@ export async function POST(
     return new NextResponse(
       renderHtmlPage({
         title: 'Erreur lors du traitement',
-        body: '<p style="color: #C85250;">Une erreur est survenue lors du retrait. Le sujet est peut-être déjà retiré.</p>',
+        body: `<p style="color: #C85250;">${GENERIC_TECHNICAL_ERROR}</p>`,
       }),
       { status: 500, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
     );

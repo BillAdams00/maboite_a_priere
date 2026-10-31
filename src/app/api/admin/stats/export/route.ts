@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { AdminService } from '@/server/services/admin.service';
 import { prisma } from '@/server/db';
 import type { DailyStat } from '@prisma/client';
+import { GENERIC_TECHNICAL_ERROR, getSafeErrorMessage } from '@/server/lib/errors';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
@@ -43,6 +46,12 @@ export async function GET() {
       },
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Non autorisé' }, { status: 403 });
+    console.error('Erreur API admin/stats/export :', error);
+    const safeError = getSafeErrorMessage(error);
+    const isAuth = safeError !== GENERIC_TECHNICAL_ERROR;
+    return NextResponse.json(
+      { error: safeError },
+      { status: isAuth ? 403 : 500 }
+    );
   }
 }

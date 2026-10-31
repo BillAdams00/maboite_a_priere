@@ -35,19 +35,24 @@ export async function GET(request: Request) {
 
     if (!error && data.user) {
       // Synchronise ou active la ligne Admin correspondante
-      const email = data.user.email?.toLowerCase();
-      if (email) {
-        const existingAdmin = await prisma.admin.findUnique({ where: { email } });
-        if (existingAdmin) {
-          await prisma.admin.update({
-            where: { id: existingAdmin.id },
-            data: {
-              authUserId: data.user.id,
-              status: 'ACTIVE',
-              lastLoginAt: new Date(),
-            },
-          });
+      try {
+        const email = data.user.email?.toLowerCase();
+        if (email) {
+          const existingAdmin = await prisma.admin.findUnique({ where: { email } });
+          if (existingAdmin) {
+            await prisma.admin.update({
+              where: { id: existingAdmin.id },
+              data: {
+                authUserId: data.user.id,
+                status: 'ACTIVE',
+                lastLoginAt: new Date(),
+              },
+            });
+          }
         }
+      } catch (err: any) {
+        console.error('Erreur Prisma auth/callback :', err);
+        return NextResponse.redirect(`${origin}/admin/connexion?error=auth_callback_failed`);
       }
 
       return NextResponse.redirect(`${origin}${next}`);

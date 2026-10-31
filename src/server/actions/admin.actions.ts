@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '../db';
 import { AuditRepository } from '../repositories/audit.repository';
 import type { AdminRole } from '@prisma/client';
+import { GENERIC_TECHNICAL_ERROR, getSafeErrorMessage } from '../lib/errors';
 
 export async function moderatePrayerAction(
   requestId: string,
@@ -18,7 +19,8 @@ export async function moderatePrayerAction(
     revalidatePath('/communaute');
     return { success: true, data: updated };
   } catch (error: any) {
-    return { success: false, error: error.message || 'Erreur lors de la modération' };
+    console.error('Erreur moderatePrayerAction :', error);
+    return { success: false, error: getSafeErrorMessage(error) };
   }
 }
 
@@ -34,7 +36,8 @@ export async function resolveAnsweredClaimAction(
     revalidatePath('/communaute');
     return { success: true, data: result };
   } catch (error: any) {
-    return { success: false, error: error.message || 'Erreur lors de la résolution de l’exaucement' };
+    console.error('Erreur resolveAnsweredClaimAction :', error);
+    return { success: false, error: getSafeErrorMessage(error) };
   }
 }
 
@@ -49,7 +52,8 @@ export async function inviteAdminAction(input: {
     revalidatePath('/admin/administrateurs');
     return { success: true, data: created };
   } catch (error: any) {
-    return { success: false, error: error.message || 'Erreur lors de l’invitation' };
+    console.error('Erreur inviteAdminAction :', error);
+    return { success: false, error: getSafeErrorMessage(error) };
   }
 }
 
@@ -62,7 +66,8 @@ export async function updateAdminAction(
     revalidatePath('/admin/administrateurs');
     return { success: true, data: updated };
   } catch (error: any) {
-    return { success: false, error: error.message || 'Erreur de mise à jour administrateur' };
+    console.error('Erreur updateAdminAction :', error);
+    return { success: false, error: getSafeErrorMessage(error) };
   }
 }
 
@@ -87,7 +92,8 @@ export async function updateSettingAction(key: string, value: any) {
     revalidatePath('/admin/parametres');
     return { success: true, data: updated };
   } catch (error: any) {
-    return { success: false, error: error.message || 'Erreur de modification du paramètre' };
+    console.error('Erreur updateSettingAction :', error);
+    return { success: false, error: getSafeErrorMessage(error) };
   }
 }
 
@@ -143,7 +149,7 @@ export async function sendAdminMagicLinkAction(input: {
       console.error('Erreur Prisma findUnique admin :', dbErr);
       return {
         success: false,
-        error: 'Erreur technique lors de la vérification du compte. Veuillez réessayer dans quelques instants.',
+        error: GENERIC_TECHNICAL_ERROR,
       };
     }
 
@@ -177,7 +183,7 @@ export async function sendAdminMagicLinkAction(input: {
         console.error('Erreur Supabase signInWithOtp :', error);
         return {
           success: false,
-          error: error.message || 'Impossible d’envoyer le lien magique.',
+          error: GENERIC_TECHNICAL_ERROR,
         };
       }
 
@@ -186,14 +192,14 @@ export async function sendAdminMagicLinkAction(input: {
       console.error('Erreur envoi lien magique :', err);
       return {
         success: false,
-        error: err.message || 'Erreur lors de l’envoi du lien magique',
+        error: GENERIC_TECHNICAL_ERROR,
       };
     }
   } catch (globalErr: any) {
     console.error('Erreur inattendue sendAdminMagicLinkAction :', globalErr);
     return {
       success: false,
-      error: 'Une erreur inattendue est survenue. Veuillez réessayer dans quelques instants.',
+      error: GENERIC_TECHNICAL_ERROR,
     };
   }
 }

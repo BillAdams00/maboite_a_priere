@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { env } from '../../../../server/env';
 import { StatRepository } from '../../../../server/repositories/stat.repository';
 
+import { GENERIC_TECHNICAL_ERROR } from '../../../../server/lib/errors';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
@@ -19,7 +21,7 @@ export async function GET(request: Request) {
   } catch (error: any) {
     console.error('Erreur Vercel Cron daily-stats :', error);
     return NextResponse.json(
-      { error: 'Erreur interne lors de la consolidation quotidienne' },
+      { error: GENERIC_TECHNICAL_ERROR },
       { status: 500 }
     );
   }
